@@ -172,6 +172,7 @@ function serializeStateToJson(state) {
         bullets: (entry.bullets || []).map((bullet) => serializeInlineMarkdown(bullet.content)),
       })),
     })),
+    formatterState: createFormatterFileState(state),
   };
   return JSON.stringify(data, null, 2) + "\n";
 }

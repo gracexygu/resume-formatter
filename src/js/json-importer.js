@@ -904,6 +904,19 @@ function importJsonResume(rawJson, fileName) {
 
   // Build state
   const state = buildStateFromJson(data, fileName);
+  if (data.formatterState !== undefined) {
+    if (data.formatterState && data.formatterState.version === 1
+      && typeof applyFormatterFileState === "function") {
+      applyFormatterFileState(state, data.formatterState);
+      state.importSnapshot = createImportSnapshot(state);
+    } else {
+      errors.push({
+        level: "warning",
+        code: "INVALID_FORMATTER_STATE",
+        message: "JSON 中的排版设置无法识别，已使用默认排版。",
+      });
+    }
+  }
 
   // Generate info summary
   const summaryItems = [];

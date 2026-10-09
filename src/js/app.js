@@ -35,8 +35,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initThemeSwitcher();
   initToolbarMenus();
   initResumeListPanel();
-  initJsonImport();
-  initMarkdownPaste();
+  initJsonTools();
+  initMarkdownTools();
   requestAnimationFrame(() => updateA4Status());
 });
 
@@ -44,9 +44,9 @@ document.addEventListener("DOMContentLoaded", () => {
  * Wire up toolbar button event listeners.
  */
 function wireToolbar() {
-  const btnImport = document.getElementById("btn-import-md");
+  const btnOpenFile = document.getElementById("btn-open-file");
   const btnExportPdf = document.getElementById("btn-export-pdf");
-  const fileInput = document.getElementById("file-input-md");
+  const fileInput = document.getElementById("file-input-resume");
 
   const btnAddSection = document.getElementById("btn-add-section");
   if (btnAddSection) {
@@ -61,15 +61,15 @@ function wireToolbar() {
     });
   }
 
-  // Open a Markdown file. File System Access keeps the writable handle so
+  // Open a resume file. File System Access keeps the writable handle so
   // subsequent saves update the same local file.
-  if (btnImport && fileInput) {
-    btnImport.addEventListener("click", () => openMarkdownFile(fileInput));
+  if (btnOpenFile && fileInput) {
+    btnOpenFile.addEventListener("click", () => openResumeFile(fileInput));
 
     fileInput.addEventListener("change", (e) => {
       const files = e.target.files;
       if (!files || files.length === 0) return;
-      handleImport(files[0], fileInput);
+      handleFileInputOpen(files[0], fileInput);
     });
   }
 
@@ -128,17 +128,19 @@ function wireToolbar() {
 }
 
 /**
- * Handle Markdown file import.
+ * Handle the fallback file input when File System Access is unavailable.
  * @param {File} file
  * @param {HTMLInputElement} fileInput
  */
-function handleImport(file, fileInput) {
+function handleFileInputOpen(file, fileInput) {
   const reader = new FileReader();
 
   reader.onload = async (e) => {
     const raw = e.target.result;
-    const parseResult = parseMarkdown(raw);
-    const validation = validateAndBuildState(parseResult, file.name);
+    const isJson = /\.json$/i.test(file.name);
+    const validation = isJson
+      ? importJsonResume(raw, file.name)
+      : validateAndBuildState(parseMarkdown(raw), file.name);
 
     if (validation.state) {
       // Fallback imports do not expose a writable file handle.
@@ -157,8 +159,8 @@ function handleImport(file, fileInput) {
         .map((err) => err.message);
 
       showDialog({
-        title: "导入失败",
-        message: errorMsgs.join("\n") || "无法解析该 Markdown 文件。",
+        title: "打开失败",
+        message: errorMsgs.join("\n") || `无法解析该 ${isJson ? "JSON" : "Markdown"} 文件。`,
         buttons: [{ text: "好的", primary: true }],
       });
     }
@@ -178,7 +180,7 @@ function handleImport(file, fileInput) {
   reader.readAsText(file);
 }
 
-async function openMarkdownFile(fileInput) {
+async function openResumeFile(fileInput) {
   if (!("showOpenFilePicker" in window)) {
     fileInput.click();
     return;
@@ -187,10 +189,16 @@ async function openMarkdownFile(fileInput) {
   try {
     const [handle] = await window.showOpenFilePicker({
       multiple: false,
-      types: [{
-        description: "Markdown 简历",
-        accept: { "text/markdown": [".md", ".markdown"] },
-      }],
+      types: [
+        {
+          description: "Markdown 简历",
+          accept: { "text/markdown": [".md", ".markdown"] },
+        },
+        {
+          description: "JSON 简历",
+          accept: { "application/json": [".json"] },
+        },
+      ],
     });
     if (!handle) return;
     const sourceFile = { name: handle.name, entryName: handle.name, handle };
@@ -204,7 +212,7 @@ async function openMarkdownFile(fileInput) {
     console.error("Failed to open Markdown file:", error);
     showDialog({
       title: "文件打开失败",
-      message: error && error.message ? error.message : "无法读取所选 Markdown 文件。",
+      message: error && error.message ? error.message : "无法读取所选简历文件。",
       buttons: [{ text: "好的", primary: true }],
     });
   }
@@ -332,7 +340,7 @@ async function handleSave() {
   if (!sourceFile?.handle || typeof sourceFile.handle.createWritable !== "function") {
     showDialog({
       title: "尚未关联本地文件",
-      message: "请先通过“打开文件”或“打开文件夹”打开 Markdown；也可以使用“另存为”创建一个新文件。",
+      message: "请先通过“打开文件”或“打开文件夹”打开 Markdown 或 JSON；也可以使用“另存为”创建一个新文件。",
       buttons: [{ text: "好的", primary: true }],
     });
     return;
@@ -588,7 +596,7 @@ async function ensureFileWritePermission(handle) {
   }
 }
 
-async function writeResumeToSource(file, { forceMarkdown = false, showSuccess = true } = {}) {
+async function writeResumeToSource(file, { showSuccess = true } = {}) {
   if (!file?.handle || typeof file.handle.createWritable !== "function") {
     showToast("当前文件不可写，请使用“另存为”。", "warning");
     return;
@@ -603,7 +611,7 @@ async function writeResumeToSource(file, { forceMarkdown = false, showSuccess = 
   }
 
   const state = getState();
-  const isJson = !forceMarkdown && /\.json$/i.test(file.name);
+  const isJson = /\.json$/i.test(file.name);
   const content = isJson ? serializeStateToJson(state) : serializeStateToMarkdown(state);
   const saveButton = document.getElementById("btn-save");
   if (saveButton) saveButton.disabled = true;
@@ -647,25 +655,29 @@ async function handleSaveAs() {
   if (!("showSaveFilePicker" in window)) {
     showDialog({
       title: "当前浏览器不支持另存为",
-      message: "请使用最新版桌面 Chrome 打开排版器，再选择新的 Markdown 文件位置。",
+      message: "请使用最新版桌面 Chrome 打开排版器，再选择新的简历文件位置。",
       buttons: [{ text: "好的", primary: true }],
     });
     return;
   }
 
+  const currentIsJson = /\.json$/i.test(state.source?.fileName || "");
+  const extension = currentIsJson ? ".json" : ".md";
   const sourceBaseName = (state.source?.fileName || "").split("/").pop()?.replace(/\.(?:md|markdown|json)$/i, "");
-  const suggestedName = `${sanitizeFileName(sourceBaseName || state.resumeName || "resume")}-副本.md`;
+  const suggestedName = `${sanitizeFileName(sourceBaseName || state.resumeName || "resume")}-副本${extension}`;
   try {
     const handle = await window.showSaveFilePicker({
       suggestedName,
       ...( _dirHandle ? { startIn: _dirHandle } : {}),
       types: [{
-        description: "Markdown 简历",
-        accept: { "text/markdown": [".md", ".markdown"] },
+        description: currentIsJson ? "JSON 简历" : "Markdown 简历",
+        accept: currentIsJson
+          ? { "application/json": [".json"] }
+          : { "text/markdown": [".md", ".markdown"] },
       }],
     });
     const sourceFile = { name: handle.name, entryName: handle.name, handle };
-    const saved = await writeResumeToSource(sourceFile, { forceMarkdown: true, showSuccess: false });
+    const saved = await writeResumeToSource(sourceFile, { showSuccess: false });
     if (!saved) return;
 
     _activeSourceFile = sourceFile;
@@ -694,7 +706,7 @@ async function handleSaveAs() {
     console.error("Failed to save resume as Markdown:", error);
     showDialog({
       title: "另存为失败",
-      message: error && error.message ? error.message : "无法创建新的 Markdown 文件。",
+      message: error && error.message ? error.message : "无法创建新的简历文件。",
       buttons: [{ text: "好的", primary: true }],
     });
   }
@@ -1576,16 +1588,9 @@ function closeDialog() {
  * JSON import initialization.
  * Wires up JSON import buttons and file input.
  */
-function initJsonImport() {
-  const btnPasteJson = document.getElementById("btn-paste-json");
-  const btnImportJsonFile = document.getElementById("btn-import-json-file");
+function initJsonTools() {
   const btnShowJsonExample = document.getElementById("btn-show-json-example");
-  const fileInput = document.getElementById("file-input-json");
 
-  if (btnPasteJson) btnPasteJson.addEventListener("click", handlePasteJson);
-  if (btnImportJsonFile) btnImportJsonFile.addEventListener("click", () => {
-    if (fileInput) fileInput.click();
-  });
   if (btnShowJsonExample) btnShowJsonExample.addEventListener("click", handleShowJsonExample);
 
   // 4 conversion prompt buttons
@@ -1599,20 +1604,11 @@ function initJsonImport() {
   if (btnDocxToMd) btnDocxToMd.addEventListener("click", () => handleCopyPrompt(PROMPT_DOCX_TO_MD, btnDocxToMd));
   if (btnDocxToJson) btnDocxToJson.addEventListener("click", () => handleCopyPrompt(PROMPT_DOCX_TO_JSON, btnDocxToJson));
 
-  if (fileInput) {
-    fileInput.addEventListener("change", (e) => {
-      const files = e.target.files;
-      if (!files || files.length === 0) return;
-      handleImportJsonFile(files[0], fileInput);
-    });
-  }
 }
 
-function initMarkdownPaste() {
-  const btnPasteMd = document.getElementById("btn-paste-md");
+function initMarkdownTools() {
   const btnShowMdExample = document.getElementById("btn-show-md-example");
 
-  if (btnPasteMd) btnPasteMd.addEventListener("click", handlePasteMarkdown);
   if (btnShowMdExample) btnShowMdExample.addEventListener("click", handleShowMdExample);
 }
 

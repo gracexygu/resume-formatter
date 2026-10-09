@@ -81,7 +81,7 @@ test("打开单个 Markdown 后保存覆盖原文件，另存为后切换到新�
   context.showOpenFilePicker = async () => [originalHandle];
   context.showSaveFilePicker = async () => copyHandle;
 
-  await vm.runInContext("openMarkdownFile({ click() {} })", context);
+  await vm.runInContext("openResumeFile({ click() {} })", context);
   assert.equal(vm.runInContext("getActiveSourceFile().handle === originalHandle", context), true);
 
   vm.runInContext("getState().profile.headline = '保存覆盖验证'", context);
@@ -98,4 +98,45 @@ test("打开单个 Markdown 后保存覆盖原文件，另存为后切换到新�
   assert.equal(originalHandle.writes, 1);
   assert.equal(copyHandle.writes, 2);
   assert.match(copyHandle.text, /headline: 副本后续保存验证/);
+});
+
+test("打开 JSON 后保存和另存为都沿用 JSON 格式", async () => {
+  const context = createTestContext();
+  const originalJson = JSON.stringify({
+    schemaVersion: 2,
+    resumeName: "JSON 保存验证",
+    profile: {
+      name: "示例用户",
+      headline: "产品经理",
+      phone: "1xx-xxxx-xxxx",
+      email: "example@example.com",
+    },
+    sections: [{
+      type: "skills",
+      entries: [{ name: "", bullets: ["产品：需求分析"] }],
+    }],
+  });
+  const originalHandle = createWritableHandle("resume.json", originalJson);
+  const copyHandle = createWritableHandle("resume-副本.json");
+  context.originalHandle = originalHandle;
+  context.copyHandle = copyHandle;
+  context.showOpenFilePicker = async () => [originalHandle];
+  context.showSaveFilePicker = async () => copyHandle;
+
+  await vm.runInContext("openResumeFile({ click() {} })", context);
+  vm.runInContext(`
+    getState().layout.theme = "d";
+    getState().sections[0].entries[0].bullets[0].markerStyle = "circle";
+  `, context);
+  await vm.runInContext("handleSave()", context);
+
+  const saved = JSON.parse(originalHandle.text);
+  assert.equal(saved.profile.headline, "产品经理");
+  assert.equal(saved.formatterState.layout.theme, "d");
+  assert.equal(saved.formatterState.sections[0].entries[0].bullets[0].markerStyle, "circle");
+
+  await vm.runInContext("handleSaveAs()", context);
+  assert.equal(vm.runInContext("getActiveSourceFile().handle === copyHandle", context), true);
+  assert.doesNotThrow(() => JSON.parse(copyHandle.text));
+  assert.equal(JSON.parse(copyHandle.text).formatterState.layout.theme, "d");
 });

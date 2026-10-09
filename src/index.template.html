@@ -139,29 +139,16 @@
       <div class="panel-header">
         <span id="panel-dir-name" class="panel-dir-name" title="">简历版本</span>
         <details class="toolbar-menu panel-import-menu" id="open-menu">
-          <summary class="toolbar-btn panel-import-btn" title="打开本地 Markdown 文件或文件夹">
+          <summary class="toolbar-btn panel-import-btn" title="打开本地 Markdown、JSON 文件或文件夹">
             <span>打开</span>
             <span class="toolbar-caret">⌄</span>
           </summary>
           <div class="toolbar-popover toolbar-action-options">
             <div class="toolbar-menu-section">
-              <button id="btn-import-md" class="toolbar-btn" title="打开一个本地 Markdown 文件并关联保存">打开文件</button>
+              <button id="btn-open-file" class="toolbar-btn" title="打开一个本地 Markdown 或 JSON 文件并关联保存">打开文件</button>
               <button id="btn-pick-dir" class="toolbar-btn" title="打开文件夹并识别其中符合简历格式的 Markdown 和 JSON">打开文件夹</button>
             </div>
-          </div>
-        </details>
-        <details class="toolbar-menu panel-import-menu" id="import-menu">
-          <summary class="toolbar-btn panel-import-btn" title="通过 JSON 或粘贴内容导入简历">
-            <span>更多导入</span>
-            <span class="toolbar-caret">⌄</span>
-          </summary>
-          <div class="toolbar-popover toolbar-action-options">
-            <div class="toolbar-menu-section">
-              <button id="btn-import-json-file" class="toolbar-btn" title="导入单个 JSON 文件">导入 JSON</button>
-            </div>
             <div class="toolbar-menu-section toolbar-menu-secondary">
-              <button id="btn-paste-md" class="toolbar-btn" title="粘贴 Markdown 内容">粘贴 Markdown</button>
-              <button id="btn-paste-json" class="toolbar-btn" title="粘贴 JSON 内容">粘贴 JSON</button>
               <button id="btn-show-md-example" class="toolbar-btn" title="查看 Markdown 格式示例">Markdown 示例</button>
               <button id="btn-show-json-example" class="toolbar-btn" title="查看 JSON 格式示例">JSON 示例</button>
             </div>
@@ -198,9 +185,8 @@
     <div id="dialog-root"></div>
   </div>
 
-  <input type="file" id="file-input-md" accept=".md,.markdown,text/markdown,text/plain" hidden>
+  <input type="file" id="file-input-resume" accept=".md,.markdown,.json,text/markdown,text/plain,application/json" hidden>
   <input type="file" id="file-input-directory" accept=".md,.markdown,.json,text/markdown,text/plain,application/json" webkitdirectory directory multiple hidden>
-  <input type="file" id="file-input-json" accept=".json,application/json" hidden>
   <input type="file" id="file-input-photo" accept="image/jpeg,image/png,image/webp" hidden>
 
   <!-- __SCRIPTS__ -->

@@ -237,6 +237,35 @@ test("JSON Schema v2 支持自定义板块", () => {
   assert.equal(result.state.sections[0].blocks[1].bullets[0].content[0].value, "列表内容");
 });
 
+test("JSON 往返会保留排版参数和逐行符号", () => {
+  const raw = JSON.stringify({
+    schemaVersion: 2,
+    resumeName: "JSON 排版测试",
+    profile: { name: "示例用户", headline: "产品经理", phone: "1xx-xxxx-xxxx", email: "example@example.com" },
+    sections: [{ type: "skills", entries: [{ name: "", bullets: ["产品：需求分析"] }] }],
+  });
+  context.__json = raw;
+  const imported = vm.runInContext("importJsonResume(__json, 'layout.json')", context);
+  const bullet = imported.state.sections[0].entries[0].bullets[0];
+  imported.state.layout.fontSize = 11;
+  imported.state.layout.lineHeight = 1.7;
+  imported.state.layout.theme = "d";
+  imported.state.sections[0].spacingBefore = 2.5;
+  bullet.markerStyle = "circle";
+
+  context.__jsonState = imported.state;
+  const exported = vm.runInContext("serializeStateToJson(__jsonState)", context);
+  context.__roundTripJson = exported;
+  const reopened = vm.runInContext("importJsonResume(__roundTripJson, 'layout-copy.json')", context).state;
+  const reopenedBullet = reopened.sections[0].entries[0].bullets[0];
+
+  assert.equal(reopened.layout.fontSize, 11);
+  assert.equal(reopened.layout.lineHeight, 1.7);
+  assert.equal(reopened.layout.theme, "d");
+  assert.equal(reopened.sections[0].spacingBefore, 2.5);
+  assert.equal(reopenedBullet.markerStyle, "circle");
+});
+
 test("实习经历可以按拖动后的 ID 顺序整体重排", () => {
   const markdown = readFileSync(new URL("fixtures/valid/sample-resume.md", root), "utf8");
   const result = evaluate(markdown, "sample-resume.md");

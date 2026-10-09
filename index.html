@@ -2236,29 +2236,16 @@ body {
       <div class="panel-header">
         <span id="panel-dir-name" class="panel-dir-name" title="">简历版本</span>
         <details class="toolbar-menu panel-import-menu" id="open-menu">
-          <summary class="toolbar-btn panel-import-btn" title="打开本地 Markdown 文件或文件夹">
+          <summary class="toolbar-btn panel-import-btn" title="打开本地 Markdown、JSON 文件或文件夹">
             <span>打开</span>
             <span class="toolbar-caret">⌄</span>
           </summary>
           <div class="toolbar-popover toolbar-action-options">
             <div class="toolbar-menu-section">
-              <button id="btn-import-md" class="toolbar-btn" title="打开一个本地 Markdown 文件并关联保存">打开文件</button>
+              <button id="btn-open-file" class="toolbar-btn" title="打开一个本地 Markdown 或 JSON 文件并关联保存">打开文件</button>
               <button id="btn-pick-dir" class="toolbar-btn" title="打开文件夹并识别其中符合简历格式的 Markdown 和 JSON">打开文件夹</button>
             </div>
-          </div>
-        </details>
-        <details class="toolbar-menu panel-import-menu" id="import-menu">
-          <summary class="toolbar-btn panel-import-btn" title="通过 JSON 或粘贴内容导入简历">
-            <span>更多导入</span>
-            <span class="toolbar-caret">⌄</span>
-          </summary>
-          <div class="toolbar-popover toolbar-action-options">
-            <div class="toolbar-menu-section">
-              <button id="btn-import-json-file" class="toolbar-btn" title="导入单个 JSON 文件">导入 JSON</button>
-            </div>
             <div class="toolbar-menu-section toolbar-menu-secondary">
-              <button id="btn-paste-md" class="toolbar-btn" title="粘贴 Markdown 内容">粘贴 Markdown</button>
-              <button id="btn-paste-json" class="toolbar-btn" title="粘贴 JSON 内容">粘贴 JSON</button>
               <button id="btn-show-md-example" class="toolbar-btn" title="查看 Markdown 格式示例">Markdown 示例</button>
               <button id="btn-show-json-example" class="toolbar-btn" title="查看 JSON 格式示例">JSON 示例</button>
             </div>
@@ -2295,9 +2282,8 @@ body {
     <div id="dialog-root"></div>
   </div>
 
-  <input type="file" id="file-input-md" accept=".md,.markdown,text/markdown,text/plain" hidden>
+  <input type="file" id="file-input-resume" accept=".md,.markdown,.json,text/markdown,text/plain,application/json" hidden>
   <input type="file" id="file-input-directory" accept=".md,.markdown,.json,text/markdown,text/plain,application/json" webkitdirectory directory multiple hidden>
-  <input type="file" id="file-input-json" accept=".json,application/json" hidden>
   <input type="file" id="file-input-photo" accept="image/jpeg,image/png,image/webp" hidden>
 
   <script>const DEFAULT_RESUME_MD = "---\nschema_version: 1\nresume_name: 谷雨-用户增长产品经理（虚构演示）\nname: 谷雨\nheadline: 用户增长产品经理｜虚构演示数据\nlocation: 北京\nphone: 1xx-xxxx-xxxx\nemail: example@example.com\n---\n\n## 教育经历\n\n### 北京大学\nrole: 信息管理与信息系统｜本科\ndate: 2020.09–2024.06\nlocation: 北京\n\n- GPA 3.85/4.00，专业前 5%\n- 主修课程：数据挖掘、用户行为分析、产品策略、互联网营销\n\n## 实习经历\n\n### 星月岛｜成长事业群\nrole: 用户增长产品经理实习生\ndate: 2023.09–2024.03\nlocation: 北京\n\n- 负责**新用户激活漏斗**优化，拆解注册→首单全链路，识别核心流失节点，推动首单补贴策略迭代，30 日新用户首单转化率提升 **12%**\n- 设计用户分层召回体系，根据沉默时长与历史消费频次划分 4 类标签，分别匹配差异化触达策略，召回成本下降 **18%**，ROI 提升至 **1.4**\n- 搭建增长看板，梳理 DAU、新增、留存、付费转化等核心指标，支持业务方每日自助取数，减少分析同学人工取数需求约 **60%**\n\n### 幻彩岛｜内容电商\nrole: 增长产品实习生\ndate: 2023.03–2023.08\nlocation: 北京\n\n- 参与**直播间冷启动**策略设计，针对新主播设定流量扶持规则与毕业条件，协助产品经理完成需求文档、竞品分析与上线后数据复盘\n- 协助设计 A/B 实验方案，覆盖落地页文案、CTA 样式与激励权益三个变量，主导数据收集与显著性验证，产出可直接执行的优化建议\n- 输出《新主播冷启动竞品报告》，覆盖同类平台 6 项核心机制对比，被团队采纳作为策略参考\n\n### 珊瑚岛｜出行业务\nrole: 产品运营实习生\ndate: 2022.07–2022.09\nlocation: 北京\n\n- 梳理司机端拉新裂变链路，整理现有激励结构中的规则漏洞与用户反馈，提出 3 项优化建议，其中 1 项进入下季度规划\n- 参与**司机留存专项**数据分析，清洗 3 万条问卷数据，识别影响 30 日留存的关键因素，输出分析报告并完成内部宣讲\n\n## 项目经历\n\n### 用户增长实验平台设计\nrole: 独立项目\ndate: 2023.10–2024.01\n\n- 基于实习经历中对 A/B 实验管理痛点的观察，设计一套轻量级实验平台原型，覆盖实验创建、流量分配、指标配置与结果可视化四个模块\n- 完成 40+ 页 PRD，使用 Figma 输出高保真原型，通过 5 次用户访谈验证核心功能优先级\n\n## 技能\n\n- **产品**：需求分析、用户分层、漏斗拆解、A/B 实验设计、增量归因、PRD 撰写\n- **数据**：SQL、Excel、神策/Sensors Data、看板搭建\n- **工具**：Figma、Axure、飞书文档\n- **语言**：英语 CET-6 578，具备英文资料阅读及业务沟通能力\n";
@@ -3985,6 +3971,19 @@ function importJsonResume(rawJson, fileName) {
 
   // Build state
   const state = buildStateFromJson(data, fileName);
+  if (data.formatterState !== undefined) {
+    if (data.formatterState && data.formatterState.version === 1
+      && typeof applyFormatterFileState === "function") {
+      applyFormatterFileState(state, data.formatterState);
+      state.importSnapshot = createImportSnapshot(state);
+    } else {
+      errors.push({
+        level: "warning",
+        code: "INVALID_FORMATTER_STATE",
+        message: "JSON 中的排版设置无法识别，已使用默认排版。",
+      });
+    }
+  }
 
   // Generate info summary
   const summaryItems = [];
@@ -7067,6 +7066,7 @@ function serializeStateToJson(state) {
         bullets: (entry.bullets || []).map((bullet) => serializeInlineMarkdown(bullet.content)),
       })),
     })),
+    formatterState: createFormatterFileState(state),
   };
   return JSON.stringify(data, null, 2) + "\n";
 }
@@ -7896,8 +7896,8 @@ document.addEventListener("DOMContentLoaded", () => {
   initThemeSwitcher();
   initToolbarMenus();
   initResumeListPanel();
-  initJsonImport();
-  initMarkdownPaste();
+  initJsonTools();
+  initMarkdownTools();
   requestAnimationFrame(() => updateA4Status());
 });
 
@@ -7905,9 +7905,9 @@ document.addEventListener("DOMContentLoaded", () => {
  * Wire up toolbar button event listeners.
  */
 function wireToolbar() {
-  const btnImport = document.getElementById("btn-import-md");
+  const btnOpenFile = document.getElementById("btn-open-file");
   const btnExportPdf = document.getElementById("btn-export-pdf");
-  const fileInput = document.getElementById("file-input-md");
+  const fileInput = document.getElementById("file-input-resume");
 
   const btnAddSection = document.getElementById("btn-add-section");
   if (btnAddSection) {
@@ -7922,15 +7922,15 @@ function wireToolbar() {
     });
   }
 
-  // Open a Markdown file. File System Access keeps the writable handle so
+  // Open a resume file. File System Access keeps the writable handle so
   // subsequent saves update the same local file.
-  if (btnImport && fileInput) {
-    btnImport.addEventListener("click", () => openMarkdownFile(fileInput));
+  if (btnOpenFile && fileInput) {
+    btnOpenFile.addEventListener("click", () => openResumeFile(fileInput));
 
     fileInput.addEventListener("change", (e) => {
       const files = e.target.files;
       if (!files || files.length === 0) return;
-      handleImport(files[0], fileInput);
+      handleFileInputOpen(files[0], fileInput);
     });
   }
 
@@ -7989,17 +7989,19 @@ function wireToolbar() {
 }
 
 /**
- * Handle Markdown file import.
+ * Handle the fallback file input when File System Access is unavailable.
  * @param {File} file
  * @param {HTMLInputElement} fileInput
  */
-function handleImport(file, fileInput) {
+function handleFileInputOpen(file, fileInput) {
   const reader = new FileReader();
 
   reader.onload = async (e) => {
     const raw = e.target.result;
-    const parseResult = parseMarkdown(raw);
-    const validation = validateAndBuildState(parseResult, file.name);
+    const isJson = /\.json$/i.test(file.name);
+    const validation = isJson
+      ? importJsonResume(raw, file.name)
+      : validateAndBuildState(parseMarkdown(raw), file.name);
 
     if (validation.state) {
       // Fallback imports do not expose a writable file handle.
@@ -8018,8 +8020,8 @@ function handleImport(file, fileInput) {
         .map((err) => err.message);
 
       showDialog({
-        title: "导入失败",
-        message: errorMsgs.join("\n") || "无法解析该 Markdown 文件。",
+        title: "打开失败",
+        message: errorMsgs.join("\n") || `无法解析该 ${isJson ? "JSON" : "Markdown"} 文件。`,
         buttons: [{ text: "好的", primary: true }],
       });
     }
@@ -8039,7 +8041,7 @@ function handleImport(file, fileInput) {
   reader.readAsText(file);
 }
 
-async function openMarkdownFile(fileInput) {
+async function openResumeFile(fileInput) {
   if (!("showOpenFilePicker" in window)) {
     fileInput.click();
     return;
@@ -8048,10 +8050,16 @@ async function openMarkdownFile(fileInput) {
   try {
     const [handle] = await window.showOpenFilePicker({
       multiple: false,
-      types: [{
-        description: "Markdown 简历",
-        accept: { "text/markdown": [".md", ".markdown"] },
-      }],
+      types: [
+        {
+          description: "Markdown 简历",
+          accept: { "text/markdown": [".md", ".markdown"] },
+        },
+        {
+          description: "JSON 简历",
+          accept: { "application/json": [".json"] },
+        },
+      ],
     });
     if (!handle) return;
     const sourceFile = { name: handle.name, entryName: handle.name, handle };
@@ -8065,7 +8073,7 @@ async function openMarkdownFile(fileInput) {
     console.error("Failed to open Markdown file:", error);
     showDialog({
       title: "文件打开失败",
-      message: error && error.message ? error.message : "无法读取所选 Markdown 文件。",
+      message: error && error.message ? error.message : "无法读取所选简历文件。",
       buttons: [{ text: "好的", primary: true }],
     });
   }
@@ -8193,7 +8201,7 @@ async function handleSave() {
   if (!sourceFile?.handle || typeof sourceFile.handle.createWritable !== "function") {
     showDialog({
       title: "尚未关联本地文件",
-      message: "请先通过“打开文件”或“打开文件夹”打开 Markdown；也可以使用“另存为”创建一个新文件。",
+      message: "请先通过“打开文件”或“打开文件夹”打开 Markdown 或 JSON；也可以使用“另存为”创建一个新文件。",
       buttons: [{ text: "好的", primary: true }],
     });
     return;
@@ -8449,7 +8457,7 @@ async function ensureFileWritePermission(handle) {
   }
 }
 
-async function writeResumeToSource(file, { forceMarkdown = false, showSuccess = true } = {}) {
+async function writeResumeToSource(file, { showSuccess = true } = {}) {
   if (!file?.handle || typeof file.handle.createWritable !== "function") {
     showToast("当前文件不可写，请使用“另存为”。", "warning");
     return;
@@ -8464,7 +8472,7 @@ async function writeResumeToSource(file, { forceMarkdown = false, showSuccess = 
   }
 
   const state = getState();
-  const isJson = !forceMarkdown && /\.json$/i.test(file.name);
+  const isJson = /\.json$/i.test(file.name);
   const content = isJson ? serializeStateToJson(state) : serializeStateToMarkdown(state);
   const saveButton = document.getElementById("btn-save");
   if (saveButton) saveButton.disabled = true;
@@ -8508,25 +8516,29 @@ async function handleSaveAs() {
   if (!("showSaveFilePicker" in window)) {
     showDialog({
       title: "当前浏览器不支持另存为",
-      message: "请使用最新版桌面 Chrome 打开排版器，再选择新的 Markdown 文件位置。",
+      message: "请使用最新版桌面 Chrome 打开排版器，再选择新的简历文件位置。",
       buttons: [{ text: "好的", primary: true }],
     });
     return;
   }
 
+  const currentIsJson = /\.json$/i.test(state.source?.fileName || "");
+  const extension = currentIsJson ? ".json" : ".md";
   const sourceBaseName = (state.source?.fileName || "").split("/").pop()?.replace(/\.(?:md|markdown|json)$/i, "");
-  const suggestedName = `${sanitizeFileName(sourceBaseName || state.resumeName || "resume")}-副本.md`;
+  const suggestedName = `${sanitizeFileName(sourceBaseName || state.resumeName || "resume")}-副本${extension}`;
   try {
     const handle = await window.showSaveFilePicker({
       suggestedName,
       ...( _dirHandle ? { startIn: _dirHandle } : {}),
       types: [{
-        description: "Markdown 简历",
-        accept: { "text/markdown": [".md", ".markdown"] },
+        description: currentIsJson ? "JSON 简历" : "Markdown 简历",
+        accept: currentIsJson
+          ? { "application/json": [".json"] }
+          : { "text/markdown": [".md", ".markdown"] },
       }],
     });
     const sourceFile = { name: handle.name, entryName: handle.name, handle };
-    const saved = await writeResumeToSource(sourceFile, { forceMarkdown: true, showSuccess: false });
+    const saved = await writeResumeToSource(sourceFile, { showSuccess: false });
     if (!saved) return;
 
     _activeSourceFile = sourceFile;
@@ -8555,7 +8567,7 @@ async function handleSaveAs() {
     console.error("Failed to save resume as Markdown:", error);
     showDialog({
       title: "另存为失败",
-      message: error && error.message ? error.message : "无法创建新的 Markdown 文件。",
+      message: error && error.message ? error.message : "无法创建新的简历文件。",
       buttons: [{ text: "好的", primary: true }],
     });
   }
@@ -9437,16 +9449,9 @@ function closeDialog() {
  * JSON import initialization.
  * Wires up JSON import buttons and file input.
  */
-function initJsonImport() {
-  const btnPasteJson = document.getElementById("btn-paste-json");
-  const btnImportJsonFile = document.getElementById("btn-import-json-file");
+function initJsonTools() {
   const btnShowJsonExample = document.getElementById("btn-show-json-example");
-  const fileInput = document.getElementById("file-input-json");
 
-  if (btnPasteJson) btnPasteJson.addEventListener("click", handlePasteJson);
-  if (btnImportJsonFile) btnImportJsonFile.addEventListener("click", () => {
-    if (fileInput) fileInput.click();
-  });
   if (btnShowJsonExample) btnShowJsonExample.addEventListener("click", handleShowJsonExample);
 
   // 4 conversion prompt buttons
@@ -9460,20 +9465,11 @@ function initJsonImport() {
   if (btnDocxToMd) btnDocxToMd.addEventListener("click", () => handleCopyPrompt(PROMPT_DOCX_TO_MD, btnDocxToMd));
   if (btnDocxToJson) btnDocxToJson.addEventListener("click", () => handleCopyPrompt(PROMPT_DOCX_TO_JSON, btnDocxToJson));
 
-  if (fileInput) {
-    fileInput.addEventListener("change", (e) => {
-      const files = e.target.files;
-      if (!files || files.length === 0) return;
-      handleImportJsonFile(files[0], fileInput);
-    });
-  }
 }
 
-function initMarkdownPaste() {
-  const btnPasteMd = document.getElementById("btn-paste-md");
+function initMarkdownTools() {
   const btnShowMdExample = document.getElementById("btn-show-md-example");
 
-  if (btnPasteMd) btnPasteMd.addEventListener("click", handlePasteMarkdown);
   if (btnShowMdExample) btnShowMdExample.addEventListener("click", handleShowMdExample);
 }
 
