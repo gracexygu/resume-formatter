@@ -287,3 +287,38 @@ test("载入旧状态时会清除造成板块重叠的负间距", () => {
   assert.equal(state.sections[0].spacingBefore, 0);
   assert.equal(state.sections[1].spacingBefore, 3);
 });
+
+test("Markdown 往返会保留排版参数、逐行符号和局部字号", () => {
+  const markdown = readFileSync(new URL("fixtures/valid/sample-resume.md", root), "utf8");
+  const result = evaluate(markdown, "sample-resume.md");
+  const section = result.state.sections.find((item) => item.type === "experience");
+  const entry = section.entries[0];
+  const bullet = entry.bullets[0];
+
+  result.state.layout.fontSize = 11.2;
+  result.state.layout.lineHeight = 1.68;
+  result.state.layout.headerOffsetY = 2.5;
+  result.state.layout.theme = "c";
+  result.state.layout.blockTextStyle = { [`entry:${entry.id}:name`]: { bold: true, italic: false } };
+  section.spacingBefore = 3.5;
+  bullet.markerStyle = "square";
+  bullet.content[0].fontSizeDelta = 1;
+
+  context.__formattedState = result.state;
+  const exported = vm.runInContext("serializeStateToMarkdown(__formattedState)", context);
+  const reopened = evaluate(exported, "formatted.md").state;
+  const reopenedSection = reopened.sections.find((item) => item.type === "experience");
+  const reopenedEntry = reopenedSection.entries[0];
+  const reopenedBullet = reopenedEntry.bullets[0];
+
+  assert.match(exported, /resume_formatter_state:/);
+  assert.equal(reopened.layout.fontSize, 11.2);
+  assert.equal(reopened.layout.lineHeight, 1.68);
+  assert.equal(reopened.layout.headerOffsetY, 2.5);
+  assert.equal(reopened.layout.theme, "c");
+  assert.equal(reopenedSection.spacingBefore, 3.5);
+  assert.equal(reopenedBullet.markerStyle, "square");
+  assert.equal(reopenedBullet.content[0].fontSizeDelta, 1);
+  assert.equal(reopenedEntry.id, entry.id);
+  assert.equal(reopened.layout.blockTextStyle[`entry:${entry.id}:name`].bold, true);
+});

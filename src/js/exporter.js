@@ -10,6 +10,7 @@
  */
 function serializeStateToMarkdown(state) {
   const cleanScalar = (value) => String(value || "").replace(/[\r\n]+/g, " ").trim();
+  const formatterState = encodeURIComponent(JSON.stringify(createFormatterFileState(state)));
   const lines = ["---", "schema_version: 2"];
   const frontmatter = [
     ["resume_name", state.resumeName],
@@ -22,6 +23,7 @@ function serializeStateToMarkdown(state) {
     ["portfolio", state.profile.portfolio],
     ["github", state.profile.github],
     ["photo", state.photo && state.photo.source],
+    [FORMATTER_STATE_FIELD, formatterState],
   ];
 
   frontmatter.forEach(([key, value]) => {
@@ -63,6 +65,55 @@ function serializeStateToMarkdown(state) {
   });
 
   return lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd() + "\n";
+}
+
+function createFormatterFileState(state) {
+  const photo = state.photo || {};
+  return {
+    version: 1,
+    layout: deepClone(state.layout || {}),
+    photo: {
+      scale: photo.scale,
+      frameScale: photo.frameScale,
+      frameOffsetX: photo.frameOffsetX,
+      frameOffsetY: photo.frameOffsetY,
+      offsetX: photo.offsetX,
+      offsetY: photo.offsetY,
+    },
+    sections: (state.sections || []).map((section) => ({
+      id: section.id,
+      spacingBefore: section.spacingBefore,
+      entries: (section.entries || []).map(createEntryPresentation),
+      blocks: (section.blocks || []).map((block) => ({
+        id: block.id,
+        type: block.type,
+        bullets: (block.bullets || []).map(createBulletPresentation),
+      })),
+    })),
+  };
+}
+
+function createEntryPresentation(entry) {
+  return {
+    id: entry.id,
+    bullets: (entry.bullets || []).map(createBulletPresentation),
+  };
+}
+
+function createBulletPresentation(bullet) {
+  let offset = 0;
+  const fontSizeRanges = [];
+  for (const token of (bullet.content || [])) {
+    const length = String(token.value || "").length;
+    const delta = Number(token.fontSizeDelta) || 0;
+    if (delta && length > 0) fontSizeRanges.push([offset, offset + length, delta]);
+    offset += length;
+  }
+  return {
+    id: bullet.id,
+    ...(bullet.markerStyle ? { markerStyle: bullet.markerStyle } : {}),
+    ...(fontSizeRanges.length > 0 ? { fontSizeRanges } : {}),
+  };
 }
 
 function serializeEntryToMarkdown(lines, entry, cleanScalar) {

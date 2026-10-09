@@ -20,7 +20,10 @@ const OPTIONAL_FRONTMATTER_FIELDS = [
   "portfolio",
   "github",
   "photo",
+  "resume_formatter_state",
 ];
+
+const FORMATTER_STATE_FIELD = "resume_formatter_state";
 
 /**
  * @typedef {object} ValidationResult
@@ -183,6 +186,18 @@ function validateAndBuildState(parseResult, fileName) {
 
   // Build state (even with errors — the caller decides whether to use it)
   const state = buildState(frontmatter, sections, fileName);
+  const formatterState = parseFormatterFileState(frontmatter[FORMATTER_STATE_FIELD]);
+  if (frontmatter[FORMATTER_STATE_FIELD] && !formatterState) {
+    errors.push({
+      level: "warning",
+      code: "INVALID_FORMATTER_STATE",
+      message: "文件中的排版设置无法识别，已使用默认排版。",
+      line: frontmatter._startLine + 1,
+    });
+  } else if (formatterState) {
+    applyFormatterFileState(state, formatterState);
+    state.importSnapshot = createImportSnapshot(state);
+  }
 
   // Generate info summary
   const summaryItems = [];
@@ -208,6 +223,157 @@ function validateAndBuildState(parseResult, fileName) {
   });
 
   return { errors, state: hasErrors ? null : state };
+}
+
+function parseFormatterFileState(raw) {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(decodeURIComponent(String(raw)));
+    return parsed && parsed.version === 1 ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function applyFormatterFileState(state, formatterState) {
+  const sectionStates = Array.isArray(formatterState.sections) ? formatterState.sections : [];
+  (state.sections || []).forEach((section, sectionIndex) => {
+    const savedSection = sectionStates[sectionIndex];
+    if (!savedSection || typeof savedSection !== "object") return;
+    section.id = restoreFormatterId(savedSection.id, section.id);
+    if (Number.isFinite(Number(savedSection.spacingBefore))) {
+      section.spacingBefore = Math.max(0, Math.min(100, Number(savedSection.spacingBefore)));
+    }
+    restoreEntryPresentations(section.entries, savedSection.entries);
+    (section.blocks || []).forEach((block, blockIndex) => {
+      const savedBlock = Array.isArray(savedSection.blocks) ? savedSection.blocks[blockIndex] : null;
+      if (!savedBlock || savedBlock.type !== block.type) return;
+      block.id = restoreFormatterId(savedBlock.id, block.id);
+      restoreBulletPresentations(block.bullets, savedBlock.bullets);
+    });
+  });
+
+  const savedLayout = formatterState.layout && typeof formatterState.layout === "object"
+    ? formatterState.layout
+    : {};
+  state.layout.fontSize = restoreNumber(savedLayout.fontSize, state.layout.fontSize, 7, 12);
+  state.layout.lineHeight = restoreNumber(savedLayout.lineHeight, state.layout.lineHeight, 1.15, 1.8);
+  state.layout.headerOffsetY = restoreNumber(savedLayout.headerOffsetY, state.layout.headerOffsetY, -8, 8);
+  state.layout.theme = ["a", "b", "c", "d"].includes(savedLayout.theme) ? savedLayout.theme : "a";
+  restoreBlockFormatting(state, savedLayout);
+
+  const savedPhoto = formatterState.photo && typeof formatterState.photo === "object"
+    ? formatterState.photo
+    : {};
+  state.photo.scale = restoreNumber(savedPhoto.scale, state.photo.scale, 0.1, 4);
+  state.photo.frameScale = restoreNumber(savedPhoto.frameScale, state.photo.frameScale, 0.4, 2);
+  state.photo.frameOffsetX = restoreNumber(savedPhoto.frameOffsetX, state.photo.frameOffsetX, -100, 100);
+  state.photo.frameOffsetY = restoreNumber(savedPhoto.frameOffsetY, state.photo.frameOffsetY, -100, 100);
+  state.photo.offsetX = restoreNumber(savedPhoto.offsetX, state.photo.offsetX, -10000, 10000);
+  state.photo.offsetY = restoreNumber(savedPhoto.offsetY, state.photo.offsetY, -10000, 10000);
+}
+
+function restoreEntryPresentations(entries, savedEntries) {
+  (entries || []).forEach((entry, index) => {
+    const savedEntry = Array.isArray(savedEntries) ? savedEntries[index] : null;
+    if (!savedEntry) return;
+    entry.id = restoreFormatterId(savedEntry.id, entry.id);
+    restoreBulletPresentations(entry.bullets, savedEntry.bullets);
+  });
+}
+
+function restoreBulletPresentations(bullets, savedBullets) {
+  const allowedMarkers = new Set(["none", "disc", "circle", "square", "arrow"]);
+  (bullets || []).forEach((bullet, index) => {
+    const savedBullet = Array.isArray(savedBullets) ? savedBullets[index] : null;
+    if (!savedBullet) return;
+    bullet.id = restoreFormatterId(savedBullet.id, bullet.id);
+    if (allowedMarkers.has(savedBullet.markerStyle)) bullet.markerStyle = savedBullet.markerStyle;
+    if (Array.isArray(savedBullet.fontSizeRanges)) {
+      bullet.content = applyFontSizeRanges(bullet.content, savedBullet.fontSizeRanges);
+    }
+  });
+}
+
+function applyFontSizeRanges(tokens, rawRanges) {
+  const totalLength = (tokens || []).reduce((sum, token) => sum + String(token.value || "").length, 0);
+  const ranges = rawRanges.map((range) => {
+    if (!Array.isArray(range) || range.length < 3) return null;
+    const start = Math.max(0, Math.min(totalLength, Number(range[0])));
+    const end = Math.max(start, Math.min(totalLength, Number(range[1])));
+    const delta = Math.max(-2, Math.min(3, Number(range[2])));
+    return Number.isFinite(start) && Number.isFinite(end) && Number.isFinite(delta) && end > start
+      ? [start, end, delta]
+      : null;
+  }).filter(Boolean);
+  if (ranges.length === 0) return tokens;
+
+  const result = [];
+  let tokenStart = 0;
+  for (const token of (tokens || [])) {
+    const value = String(token.value || "");
+    const tokenEnd = tokenStart + value.length;
+    const cuts = new Set([tokenStart, tokenEnd]);
+    for (const [start, end] of ranges) {
+      if (start > tokenStart && start < tokenEnd) cuts.add(start);
+      if (end > tokenStart && end < tokenEnd) cuts.add(end);
+    }
+    const points = [...cuts].sort((a, b) => a - b);
+    for (let index = 0; index < points.length - 1; index++) {
+      const start = points[index];
+      const end = points[index + 1];
+      if (end <= start) continue;
+      const next = { ...token, value: value.slice(start - tokenStart, end - tokenStart) };
+      const range = ranges.find(([rangeStart, rangeEnd]) => start >= rangeStart && end <= rangeEnd);
+      if (range) next.fontSizeDelta = range[2];
+      else delete next.fontSizeDelta;
+      result.push(next);
+    }
+    tokenStart = tokenEnd;
+  }
+  return result;
+}
+
+function restoreBlockFormatting(state, savedLayout) {
+  const allowedKeys = new Set();
+  Object.keys(state.profile || {}).forEach((field) => allowedKeys.add(`profile:${field}`));
+  for (const section of (state.sections || [])) {
+    const entries = [
+      ...(section.entries || []),
+      ...(section.blocks || []).filter((block) => block.type === "entry"),
+    ];
+    entries.forEach((entry) => ["name", "role", "date", "location"].forEach((field) => {
+      allowedKeys.add(`entry:${entry.id}:${field}`);
+    }));
+    (section.blocks || []).filter((block) => block.type === "text").forEach((block) => {
+      allowedKeys.add(`text:${block.id}:content`);
+    });
+  }
+
+  const textStyles = {};
+  for (const [key, value] of Object.entries(savedLayout.blockTextStyle || {})) {
+    if (!allowedKeys.has(key) || !value || typeof value !== "object") continue;
+    textStyles[key] = { bold: Boolean(value.bold), italic: Boolean(value.italic) };
+  }
+  if (Object.keys(textStyles).length > 0) state.layout.blockTextStyle = textStyles;
+
+  const fontSizes = {};
+  for (const [key, value] of Object.entries(savedLayout.blockFontSizeDelta || {})) {
+    const delta = Number(value);
+    if (allowedKeys.has(key) && Number.isFinite(delta)) {
+      fontSizes[key] = Math.max(-2, Math.min(3, delta));
+    }
+  }
+  if (Object.keys(fontSizes).length > 0) state.layout.blockFontSizeDelta = fontSizes;
+}
+
+function restoreFormatterId(value, fallback) {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{1,80}$/.test(value) ? value : fallback;
+}
+
+function restoreNumber(value, fallback, min, max) {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
 }
 
 /**

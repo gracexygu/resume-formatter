@@ -94,6 +94,7 @@ function createDefaultState() {
       fontSize: 10,
       lineHeight: 1.57,
       headerOffsetY: 0,
+      theme: "a",
     },
     photo: {
       source: "",

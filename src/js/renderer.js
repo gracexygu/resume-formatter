@@ -8,9 +8,9 @@
  * @param {object} state
  */
 function renderResume(state) {
+  if (typeof applyLayoutState === "function") applyLayoutState(state);
   renderHeader(state);
   renderSections(state);
-  if (typeof applyLayoutState === "function") applyLayoutState(state);
   if (typeof applyLocalFormatting === "function") applyLocalFormatting(state);
   if (typeof applyHeaderPosition === "function") applyHeaderPosition(state);
   updateStatusInfo(state);

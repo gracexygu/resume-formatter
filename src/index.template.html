@@ -99,6 +99,9 @@
         <button id="btn-save" class="toolbar-btn toolbar-btn-primary" title="保存当前简历">
           <span class="btn-label">保存</span>
         </button>
+        <button id="btn-save-as" class="toolbar-btn" title="将当前简历另存为新的 Markdown 文件">
+          <span class="btn-label">另存为</span>
+        </button>
         <button id="btn-export-pdf" class="toolbar-btn" title="通过浏览器导出 PDF">
           <span class="btn-label">导出 PDF</span>
         </button>
@@ -135,15 +138,25 @@
     <aside id="resume-list-panel">
       <div class="panel-header">
         <span id="panel-dir-name" class="panel-dir-name" title="">简历版本</span>
-        <details class="toolbar-menu panel-import-menu" id="import-menu">
-          <summary class="toolbar-btn panel-import-btn" title="导入简历内容">
-            <span>导入</span>
+        <details class="toolbar-menu panel-import-menu" id="open-menu">
+          <summary class="toolbar-btn panel-import-btn" title="打开本地 Markdown 文件或文件夹">
+            <span>打开</span>
             <span class="toolbar-caret">⌄</span>
           </summary>
           <div class="toolbar-popover toolbar-action-options">
             <div class="toolbar-menu-section">
-              <button id="btn-pick-dir" class="toolbar-btn" title="选择文件夹并识别其中符合简历格式的 Markdown 和 JSON">导入文件夹</button>
-              <button id="btn-import-md" class="toolbar-btn" title="导入单个 Markdown 文件">导入 Markdown</button>
+              <button id="btn-import-md" class="toolbar-btn" title="打开一个本地 Markdown 文件并关联保存">打开文件</button>
+              <button id="btn-pick-dir" class="toolbar-btn" title="打开文件夹并识别其中符合简历格式的 Markdown 和 JSON">打开文件夹</button>
+            </div>
+          </div>
+        </details>
+        <details class="toolbar-menu panel-import-menu" id="import-menu">
+          <summary class="toolbar-btn panel-import-btn" title="通过 JSON 或粘贴内容导入简历">
+            <span>更多导入</span>
+            <span class="toolbar-caret">⌄</span>
+          </summary>
+          <div class="toolbar-popover toolbar-action-options">
+            <div class="toolbar-menu-section">
               <button id="btn-import-json-file" class="toolbar-btn" title="导入单个 JSON 文件">导入 JSON</button>
             </div>
             <div class="toolbar-menu-section toolbar-menu-secondary">
