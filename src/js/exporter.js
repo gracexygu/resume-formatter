@@ -341,7 +341,8 @@ function preparePortfolioLinkForPrint() {
     current.replaceWith(link);
   }
 
-  link.className = "contact-item contact-link";
+  link.className = "contact-value editable-placeholder contact-link";
+  link.dataset.empty = "false";
   link.setAttribute("href", portfolio.href);
   link.setAttribute("target", "_blank");
   link.setAttribute("rel", "noopener noreferrer");

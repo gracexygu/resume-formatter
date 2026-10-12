@@ -260,6 +260,11 @@ function applyFormatterFileState(state, formatterState) {
   state.layout.lineHeight = restoreNumber(savedLayout.lineHeight, state.layout.lineHeight, 1.15, 1.8);
   state.layout.headerOffsetY = restoreNumber(savedLayout.headerOffsetY, state.layout.headerOffsetY, -8, 8);
   state.layout.theme = ["a", "b", "c", "d"].includes(savedLayout.theme) ? savedLayout.theme : "a";
+  state.layout.preferenceVisible = Boolean(savedLayout.preferenceVisible);
+  const contactFields = new Set(["phone", "email", "headline", "location", "portfolio"]);
+  state.layout.contactBreakBefore = Array.isArray(savedLayout.contactBreakBefore)
+    ? [...new Set(savedLayout.contactBreakBefore.filter((field) => contactFields.has(field)))]
+    : [];
   restoreBlockFormatting(state, savedLayout);
 
   const savedPhoto = formatterState.photo && typeof formatterState.photo === "object"
@@ -336,14 +341,24 @@ function applyFontSizeRanges(tokens, rawRanges) {
 
 function restoreBlockFormatting(state, savedLayout) {
   const allowedKeys = new Set();
-  Object.keys(state.profile || {}).forEach((field) => allowedKeys.add(`profile:${field}`));
+  const textLengths = new Map();
+  Object.keys(state.profile || {}).forEach((field) => {
+    const key = `profile:${field}`;
+    allowedKeys.add(key);
+    textLengths.set(key, String(state.profile[field] || "").length);
+  });
   for (const section of (state.sections || [])) {
+    const sectionKey = `section:${section.id}:title`;
+    allowedKeys.add(sectionKey);
+    textLengths.set(sectionKey, String(section.title || "").length);
     const entries = [
       ...(section.entries || []),
       ...(section.blocks || []).filter((block) => block.type === "entry"),
     ];
     entries.forEach((entry) => ["name", "role", "date", "location"].forEach((field) => {
-      allowedKeys.add(`entry:${entry.id}:${field}`);
+      const key = `entry:${entry.id}:${field}`;
+      allowedKeys.add(key);
+      textLengths.set(key, String(entry[field] || "").length);
     }));
     (section.blocks || []).filter((block) => block.type === "text").forEach((block) => {
       allowedKeys.add(`text:${block.id}:content`);
@@ -365,6 +380,33 @@ function restoreBlockFormatting(state, savedLayout) {
     }
   }
   if (Object.keys(fontSizes).length > 0) state.layout.blockFontSizeDelta = fontSizes;
+
+  const links = {};
+  for (const [key, rawRanges] of Object.entries(savedLayout.blockLinks || {})) {
+    if (!textLengths.has(key) || !Array.isArray(rawRanges)) continue;
+    const textLength = textLengths.get(key);
+    const sortedRanges = rawRanges.map((range) => {
+      if (!range || typeof range !== "object") return null;
+      const start = Math.max(0, Math.min(textLength, Number(range.start)));
+      const end = Math.max(start, Math.min(textLength, Number(range.end)));
+      const href = restoreLinkTarget(range.href);
+      return Number.isFinite(start) && Number.isFinite(end) && end > start && href
+        ? { start, end, href }
+        : null;
+    }).filter(Boolean).sort((a, b) => a.start - b.start || a.end - b.end);
+    const ranges = sortedRanges.reduce((accepted, range) => {
+      const previous = accepted[accepted.length - 1];
+      if (!previous || range.start >= previous.end) accepted.push(range);
+      return accepted;
+    }, []);
+    if (ranges.length > 0) links[key] = ranges;
+  }
+  if (Object.keys(links).length > 0) state.layout.blockLinks = links;
+}
+
+function restoreLinkTarget(value) {
+  const raw = String(value || "").trim();
+  return /^(?:https?:\/\/|mailto:)[^\s]+$/i.test(raw) ? raw : "";
 }
 
 function restoreFormatterId(value, fallback) {

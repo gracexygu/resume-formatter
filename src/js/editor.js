@@ -92,10 +92,26 @@ function initEditor() {
     _lastInputHistory = { key, type: e.inputType, time: now };
   });
 
-  // Enter key: single-line fields blur; bullet Enter = new bullet below
+  // Enter in contact information creates a user-controlled line break.
+  // Other single-line fields blur; bullet Enter creates a new bullet below.
   content.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
     const el = e.target;
+    if (e.key === "Backspace" && el.classList.contains("contact-value")) {
+      const selection = window.getSelection();
+      const range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+      const offsets = range ? getSelectionOffsets(el, range) : null;
+      if (offsets && offsets.start === 0 && offsets.end === 0
+        && removeContactLineBreakBefore(el.dataset.profileField)) {
+        e.preventDefault();
+      }
+      return;
+    }
+    if (e.key !== "Enter") return;
+    if (el.classList.contains("contact-value")) {
+      e.preventDefault();
+      addContactLineBreakAfter(el.dataset.profileField);
+      return;
+    }
     if (el.classList.contains("bullet-item")) {
       e.preventDefault();
       addBulletAfter(el);
@@ -138,6 +154,8 @@ function initEditor() {
     else if (btn.classList.contains("btn-add-block"))   { e.stopPropagation(); addCustomBlock(btn.dataset.sectionId, btn.dataset.blockType); }
     else if (btn.classList.contains("btn-del-block"))   { e.stopPropagation(); deleteCustomBlock(btn.dataset.blockId); }
     else if (btn.classList.contains("btn-del-section")) { e.stopPropagation(); deleteSection(btn.dataset.sectionId); }
+    else if (btn.classList.contains("contact-add-preference")) { e.stopPropagation(); addPreferenceFields(); }
+    else if (btn.classList.contains("contact-remove-preference")) { e.stopPropagation(); removePreferenceFields(); }
   });
 
   initSectionReordering();
@@ -180,7 +198,7 @@ function initSelectionFormatting() {
     _formatOffsets = getSelectionOffsets(target, range);
     Object.values(buttons).forEach((button) => { if (button) button.disabled = false; });
     if (buttons.link) {
-      buttons.link.disabled = !target.dataset.bulletId && target.dataset.profileField !== "portfolio";
+      buttons.link.disabled = !canEditSelectionLink(target, _formatOffsets);
     }
     updateBoldButtonState(buttons.bold);
     updateItalicButtonState(buttons.italic);
@@ -452,14 +470,18 @@ function openSelectionLinkDialog() {
     return;
   }
 
-  if (!target.dataset.bulletId) return;
+  const inlineTarget = findInlineContentTarget(target);
+  if (!inlineTarget) {
+    openBlockLinkDialog(target);
+    return;
+  }
   syncElementToState(target);
-  const bullet = findBulletById(target.dataset.bulletId);
   const offsets = _formatOffsets || getSelectionOffsets(target, _formatRange);
-  if (!bullet || !offsets) return;
+  if (!offsets) return;
 
-  const existing = findLinkTokenRange(bullet.content, offsets.start);
+  const existing = findLinkTokenRange(inlineTarget.content, offsets.start);
   const isEditingExisting = Boolean(existing && offsets.end <= existing.end);
+  if (!isEditingExisting && offsets.start === offsets.end) return;
   const start = isEditingExisting ? existing.start : offsets.start;
   const end = isEditingExisting ? existing.end : offsets.end;
   const existingStyle = isEditingExisting
@@ -467,7 +489,7 @@ function openSelectionLinkDialog() {
     : { type: "text" };
   const selectedName = isEditingExisting
     ? existing.token.value
-    : splitTokensForRange(bullet.content, offsets.start, offsets.end)
+    : splitTokensForRange(inlineTarget.content, offsets.start, offsets.end)
       .filter((part) => part.selected)
       .map((part) => part.token.value)
       .join("");
@@ -478,15 +500,80 @@ function openSelectionLinkDialog() {
     canRemove: isEditingExisting,
     onSubmit: (name, href) => {
       pushUndoState();
-      bullet.content = replaceInlineRange(bullet.content, start, end, { ...existingStyle, value: name, href });
-      target.replaceChildren(renderInlineContent(bullet.content));
+      inlineTarget.content = replaceInlineRange(inlineTarget.content, start, end, { ...existingStyle, value: name, href });
+      target.replaceChildren(renderInlineContent(inlineTarget.content));
       markDirty();
       requestAnimationFrame(() => updateA4Status());
     },
     onRemove: isEditingExisting ? () => {
       pushUndoState();
-      bullet.content = replaceInlineRange(bullet.content, start, end, { ...existingStyle, value: existing.token.value });
-      target.replaceChildren(renderInlineContent(bullet.content));
+      inlineTarget.content = replaceInlineRange(inlineTarget.content, start, end, { ...existingStyle, value: existing.token.value });
+      target.replaceChildren(renderInlineContent(inlineTarget.content));
+      markDirty();
+      requestAnimationFrame(() => updateA4Status());
+    } : null,
+  });
+}
+
+function findInlineContentTarget(target) {
+  if (target.dataset.bulletId) return findBulletById(target.dataset.bulletId);
+  if (!target.dataset.textBlockId) return null;
+  for (const section of getState().sections) {
+    const block = (section.blocks || []).find((item) => item.id === target.dataset.textBlockId);
+    if (block) return block;
+  }
+  return null;
+}
+
+function findBlockLinkRange(ranges, start, end) {
+  return ranges.find((range) => start >= range.start
+    && start <= range.end
+    && end >= range.start
+    && end <= range.end) || null;
+}
+
+function replaceBlockLinkRange(ranges, start, end, replacementLength, href = "") {
+  const delta = replacementLength - (end - start);
+  const next = [];
+  ranges.forEach((range) => {
+    if (range.end <= start) next.push({ ...range });
+    else if (range.start >= end) next.push({ ...range, start: range.start + delta, end: range.end + delta });
+  });
+  if (href && replacementLength > 0) next.push({ start, end: start + replacementLength, href });
+  return next;
+}
+
+function openBlockLinkDialog(target) {
+  const key = getBlockFormatKey(target);
+  const offsets = _formatOffsets || getSelectionOffsets(target, _formatRange);
+  if (!key || !offsets) return;
+  syncElementToState(target);
+  const state = getState();
+  const text = target.textContent || "";
+  const ranges = getBlockLinkRanges(state, key, text.length);
+  const existing = findBlockLinkRange(ranges, offsets.start, offsets.end);
+  if (!existing && offsets.start === offsets.end) return;
+  const start = existing ? existing.start : offsets.start;
+  const end = existing ? existing.end : offsets.end;
+
+  showLinkDialog({
+    name: text.slice(start, end),
+    url: existing ? existing.href : "",
+    canRemove: Boolean(existing),
+    onSubmit: (name, href) => {
+      pushUndoState();
+      const nextText = text.slice(0, start) + name + text.slice(end);
+      target.textContent = nextText;
+      syncElementToState(target);
+      setBlockLinkRanges(state, key, replaceBlockLinkRange(ranges, start, end, name.length, href));
+      renderResume(state);
+      markDirty();
+      requestAnimationFrame(() => updateA4Status());
+    },
+    onRemove: existing ? () => {
+      pushUndoState();
+      setBlockLinkRanges(state, key, ranges.filter((range) => range !== existing));
+      renderResume(state);
       markDirty();
       requestAnimationFrame(() => updateA4Status());
     } : null,
@@ -631,6 +718,9 @@ function findBulletById(bulletId) {
 
 function getBlockFormatKey(target) {
   if (target.dataset.profileField) return `profile:${target.dataset.profileField}`;
+  if (target.classList.contains("section-title") && target.dataset.sectionId) {
+    return `section:${target.dataset.sectionId}:title`;
+  }
   if (target.dataset.entryField) {
     const entry = target.closest("[data-entry-id]");
     return entry ? `entry:${entry.dataset.entryId}:${target.dataset.entryField}` : null;
@@ -643,6 +733,8 @@ function getBlockFormatSelector(key) {
   const [kind, id, field] = key.split(":");
   return kind === "profile"
     ? `[data-profile-field="${CSS.escape(id)}"]`
+    : kind === "section"
+      ? `.section-title[data-section-id="${CSS.escape(id)}"]`
     : kind === "text"
       ? `[data-text-block-id="${CSS.escape(id)}"]`
       : `[data-entry-id="${CSS.escape(id)}"] [data-entry-field="${CSS.escape(field)}"]`;
@@ -658,7 +750,7 @@ function isElementItalic(element) {
 }
 
 function applyLocalFormatting(state) {
-  document.querySelectorAll("#resume-content [data-profile-field], #resume-content [data-entry-field]").forEach((element) => {
+  document.querySelectorAll("#resume-content [data-profile-field], #resume-content [data-entry-field], #resume-content .section-title").forEach((element) => {
     element.style.removeProperty("font-size");
     element.style.removeProperty("font-weight");
     element.style.removeProperty("font-style");
@@ -679,6 +771,175 @@ function applyLocalFormatting(state) {
       if (typeof style.italic === "boolean") element.style.fontStyle = style.italic ? "italic" : "normal";
     });
   });
+
+  applyBlockLinks(state);
+}
+
+function normalizeBlockLinkRanges(rawRanges, textLength = Infinity) {
+  const sorted = (Array.isArray(rawRanges) ? rawRanges : [])
+    .map((range) => {
+      if (!range || typeof range !== "object") return null;
+      const start = Math.max(0, Math.min(textLength, Number(range.start)));
+      const end = Math.max(start, Math.min(textLength, Number(range.end)));
+      const href = normalizeLinkTarget(range.href);
+      return Number.isFinite(start) && Number.isFinite(end) && end > start && href
+        ? { start, end, href }
+        : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  return sorted.reduce((accepted, range) => {
+    const previous = accepted[accepted.length - 1];
+    if (!previous || range.start >= previous.end) accepted.push(range);
+    return accepted;
+  }, []);
+}
+
+function getBlockLinkRanges(state, key, textLength = Infinity) {
+  const ranges = state.layout && state.layout.blockLinks && state.layout.blockLinks[key];
+  return normalizeBlockLinkRanges(ranges, textLength);
+}
+
+function setBlockLinkRanges(state, key, ranges) {
+  if (!state.layout) state.layout = {};
+  if (!state.layout.blockLinks) state.layout.blockLinks = {};
+  const normalized = normalizeBlockLinkRanges(ranges);
+  if (normalized.length > 0) state.layout.blockLinks[key] = normalized;
+  else delete state.layout.blockLinks[key];
+}
+
+function applyBlockLinks(state) {
+  const blockLinks = state.layout && state.layout.blockLinks;
+  Object.entries(blockLinks || {}).forEach(([key, rawRanges]) => {
+    document.querySelectorAll(`#resume-content ${getBlockFormatSelector(key)}`).forEach((element) => {
+      if (element.dataset.profileField === "portfolio") return;
+      const text = element.textContent || "";
+      const ranges = getBlockLinkRanges(state, key, text.length);
+      if (ranges.length === 0) return;
+      const fragment = document.createDocumentFragment();
+      let offset = 0;
+      ranges.forEach((range) => {
+        if (range.start > offset) fragment.appendChild(document.createTextNode(text.slice(offset, range.start)));
+        const link = document.createElement("a");
+        link.className = "inline-link";
+        link.href = range.href;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = text.slice(range.start, range.end);
+        fragment.appendChild(link);
+        offset = range.end;
+      });
+      if (offset < text.length) fragment.appendChild(document.createTextNode(text.slice(offset)));
+      element.replaceChildren(fragment);
+    });
+  });
+}
+
+function extractBlockLinkRanges(element, canonicalText) {
+  const rawText = element.textContent || "";
+  const leadingTrim = rawText.length - rawText.trimStart().length;
+  const ranges = [];
+  let offset = 0;
+  const walk = (node, inheritedHref = "") => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const length = (node.nodeValue || "").length;
+      if (length > 0 && inheritedHref) {
+        const start = Math.max(0, offset - leadingTrim);
+        const end = Math.min(canonicalText.length, offset + length - leadingTrim);
+        if (end > start) ranges.push({ start, end, href: inheritedHref });
+      }
+      offset += length;
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const href = node.tagName === "A" ? node.getAttribute("href") || inheritedHref : inheritedHref;
+    node.childNodes.forEach((child) => walk(child, href));
+  };
+  element.childNodes.forEach((node) => walk(node));
+  return normalizeBlockLinkRanges(ranges, canonicalText.length).reduce((merged, range) => {
+    const previous = merged[merged.length - 1];
+    if (previous && previous.end === range.start && previous.href === range.href) previous.end = range.end;
+    else merged.push({ ...range });
+    return merged;
+  }, []);
+}
+
+function syncBlockLinksFromElement(state, element, canonicalText) {
+  if (element.dataset.profileField === "portfolio"
+    || element.dataset.bulletId
+    || element.dataset.textBlockId) return;
+  const key = getBlockFormatKey(element);
+  if (!key) return;
+  setBlockLinkRanges(state, key, extractBlockLinkRanges(element, canonicalText));
+}
+
+function addPreferenceFields() {
+  const state = getState();
+  pushUndoState();
+  if (!state.layout) state.layout = {};
+  state.layout.preferenceVisible = true;
+  renderHeader(state);
+  applyLocalFormatting(state);
+  markDirty();
+  requestAnimationFrame(() => {
+    focusWithoutUndoSnapshot(document.querySelector('[data-profile-field="headline"]'));
+    updateA4Status();
+  });
+}
+
+function removePreferenceFields() {
+  const state = getState();
+  pushUndoState();
+  state.profile.headline = "";
+  state.profile.location = "";
+  if (!state.layout) state.layout = {};
+  state.layout.preferenceVisible = false;
+  state.layout.contactBreakBefore = (state.layout.contactBreakBefore || [])
+    .filter((field) => !["headline", "location"].includes(field));
+  if (state.layout.blockLinks) {
+    delete state.layout.blockLinks["profile:headline"];
+    delete state.layout.blockLinks["profile:location"];
+  }
+  renderHeader(state);
+  applyLocalFormatting(state);
+  markDirty();
+  requestAnimationFrame(() => updateA4Status());
+}
+
+function updateContactLineBreaks(nextBreaks, focusField) {
+  const state = getState();
+  if (!state.layout) state.layout = {};
+  state.layout.contactBreakBefore = [...new Set(nextBreaks)];
+  renderHeader(state);
+  applyLocalFormatting(state);
+  markDirty();
+  requestAnimationFrame(() => {
+    const target = document.querySelector(`[data-profile-field="${CSS.escape(focusField)}"]`);
+    focusWithoutUndoSnapshot(target);
+    updateA4Status();
+  });
+}
+
+function addContactLineBreakAfter(field) {
+  const fields = Array.from(document.querySelectorAll("#contact-info .contact-value"))
+    .map((element) => element.dataset.profileField);
+  const nextField = fields[fields.indexOf(field) + 1];
+  if (!nextField) return false;
+  const state = getState();
+  const current = (state.layout && state.layout.contactBreakBefore) || [];
+  if (current.includes(nextField)) return false;
+  pushUndoState();
+  updateContactLineBreaks([...current, nextField], nextField);
+  return true;
+}
+
+function removeContactLineBreakBefore(field) {
+  const state = getState();
+  const current = (state.layout && state.layout.contactBreakBefore) || [];
+  if (!current.includes(field)) return false;
+  pushUndoState();
+  updateContactLineBreaks(current.filter((item) => item !== field), field);
+  return true;
 }
 
 /** ========================
@@ -849,14 +1110,30 @@ function updateLinkButtonState(button) {
     button.classList.toggle("toolbar-btn-active", Boolean(portfolio && portfolio.href));
     return;
   }
-  if (!_formatTarget.dataset.bulletId) {
-    button.classList.remove("toolbar-btn-active");
+  const offsets = _formatOffsets || getSelectionOffsets(_formatTarget, _formatRange);
+  const inlineTarget = findInlineContentTarget(_formatTarget);
+  if (inlineTarget && offsets) {
+    const existing = findLinkTokenRange(inlineTarget.content, offsets.start);
+    button.classList.toggle("toolbar-btn-active", Boolean(existing && offsets.end <= existing.end));
     return;
   }
-  const bullet = findBulletById(_formatTarget.dataset.bulletId);
-  const offsets = _formatOffsets || getSelectionOffsets(_formatTarget, _formatRange);
-  const existing = bullet && offsets ? findLinkTokenRange(bullet.content, offsets.start) : null;
-  button.classList.toggle("toolbar-btn-active", Boolean(existing && offsets.end <= existing.end));
+  const key = getBlockFormatKey(_formatTarget);
+  const ranges = key && offsets ? getBlockLinkRanges(getState(), key, _formatTarget.textContent.length) : [];
+  button.classList.toggle("toolbar-btn-active", Boolean(offsets && findBlockLinkRange(ranges, offsets.start, offsets.end)));
+}
+
+function canEditSelectionLink(target, offsets) {
+  if (!target || !offsets) return false;
+  if (target.dataset.profileField === "portfolio") return true;
+  const inlineTarget = findInlineContentTarget(target);
+  if (inlineTarget) {
+    const existing = findLinkTokenRange(inlineTarget.content, offsets.start);
+    return offsets.start !== offsets.end || Boolean(existing && offsets.end <= existing.end);
+  }
+  const key = getBlockFormatKey(target);
+  if (!key) return false;
+  const ranges = getBlockLinkRanges(getState(), key, target.textContent.length);
+  return offsets.start !== offsets.end || Boolean(findBlockLinkRange(ranges, offsets.start, offsets.end));
 }
 
 /** ========================
@@ -1409,6 +1686,8 @@ function syncElementToState(el) {
     } else if (field in state.profile) {
       state.profile[field] = raw;
     }
+    el.dataset.empty = raw ? "false" : "true";
+    syncBlockLinksFromElement(state, el, raw);
     return;
   }
 
@@ -1423,6 +1702,7 @@ function syncElementToState(el) {
         if (entry.id === entryId) {
           entry[field === "date" ? "date" : field] = raw;
           el.dataset.empty = raw ? "false" : "true";
+          syncBlockLinksFromElement(state, el, raw);
           return;
         }
       }
@@ -1436,6 +1716,7 @@ function syncElementToState(el) {
     if (section) {
       section.title = raw || (section.type === "custom" ? "未命名板块" : getSectionTitle(section.type));
       el.dataset.empty = raw ? "false" : "true";
+      syncBlockLinksFromElement(state, el, section.title);
     }
     return;
   }

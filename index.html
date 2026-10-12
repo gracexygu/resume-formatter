@@ -1704,12 +1704,55 @@ body {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: baseline;
   gap: 0;
   margin: 0;
   font-size: var(--font-size-contact);
 }
 
-#resume-page[data-theme] .contact-item + .contact-item::before { content: " | "; }
+#resume-page[data-theme] .contact-item + .contact-item::before {
+  content: "|";
+  display: inline-block;
+  margin: 0 1.2mm;
+  color: var(--color-muted, #4a4a4a);
+}
+#resume-page[data-theme] .contact-item {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+}
+#resume-page[data-theme] .contact-line-break {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 0;
+}
+#resume-page[data-theme] .contact-label { white-space: pre; }
+#resume-page[data-theme] .contact-value { min-width: 0.5em; }
+#resume-page[data-theme] .contact-link,
+#resume-page[data-theme] .inline-link {
+  color: #152fb4;
+  text-decoration: underline;
+  text-underline-offset: 0.08em;
+}
+.contact-action {
+  align-self: center;
+  margin-left: 1.5mm;
+  padding: 1px 4px;
+  border: 1px solid #bfdbfe;
+  border-radius: 3px;
+  background: #eff6ff;
+  color: #2563eb;
+  font: 10px/1.25 system-ui, sans-serif;
+  cursor: pointer;
+}
+.contact-remove-preference {
+  border-color: transparent;
+  background: transparent;
+  color: #dc2626;
+  opacity: 0;
+}
+#contact-info:hover .contact-remove-preference,
+.contact-remove-preference:focus-visible { opacity: 1; }
 
 #resume-page[data-theme] #photo-container {
   position: absolute;
@@ -2149,7 +2192,7 @@ body {
           <span class="toolbar-label">选区</span>
           <button id="btn-selection-bold" class="toolbar-icon-btn" title="加粗或取消加粗" aria-label="加粗或取消加粗" disabled><strong>B</strong></button>
           <button id="btn-selection-italic" class="toolbar-icon-btn toolbar-icon-italic" title="斜体或取消斜体" aria-label="斜体或取消斜体" disabled>I</button>
-          <button id="btn-selection-link" class="toolbar-icon-btn" title="添加或编辑链接" aria-label="添加或编辑链接" disabled>↗</button>
+          <button id="btn-selection-link" class="toolbar-icon-btn" title="为选中文字添加、编辑或移除链接" aria-label="添加或编辑链接" disabled>↗</button>
           <button id="btn-selection-smaller" class="toolbar-icon-btn" title="选区字号缩小 0.5pt" disabled>A-</button>
           <button id="btn-selection-larger" class="toolbar-icon-btn" title="选区字号增大 0.5pt" disabled>A+</button>
           <button id="btn-selection-reset" class="toolbar-icon-btn" title="清除选区字号微调" aria-label="清除选区字号微调" disabled>↺</button>
@@ -2196,7 +2239,7 @@ body {
         <button id="btn-save" class="toolbar-btn toolbar-btn-primary" title="保存当前简历">
           <span class="btn-label">保存</span>
         </button>
-        <button id="btn-save-as" class="toolbar-btn" title="将当前简历另存为新的 Markdown 文件">
+        <button id="btn-save-as" class="toolbar-btn" title="将当前简历另存为新的本地文件">
           <span class="btn-label">另存为</span>
         </button>
         <button id="btn-export-pdf" class="toolbar-btn" title="通过浏览器导出 PDF">
@@ -2222,7 +2265,6 @@ body {
                 <span class="header-position-value" aria-hidden="true">0.0 mm</span>
               </button>
               <h1 id="profile-name" class="editable-placeholder" data-empty="true" data-placeholder="姓名"></h1>
-              <p id="profile-headline" class="editable-placeholder" data-empty="true" data-placeholder="求职方向"></p>
               <div id="contact-info"></div>
             </div>
             <div id="photo-container" data-empty="true"></div>
@@ -2503,6 +2545,9 @@ function createDefaultState() {
       lineHeight: 1.57,
       headerOffsetY: 0,
       theme: "a",
+      preferenceVisible: false,
+      contactBreakBefore: [],
+      blockLinks: {},
     },
     photo: {
       source: "",
@@ -4383,6 +4428,11 @@ function applyFormatterFileState(state, formatterState) {
   state.layout.lineHeight = restoreNumber(savedLayout.lineHeight, state.layout.lineHeight, 1.15, 1.8);
   state.layout.headerOffsetY = restoreNumber(savedLayout.headerOffsetY, state.layout.headerOffsetY, -8, 8);
   state.layout.theme = ["a", "b", "c", "d"].includes(savedLayout.theme) ? savedLayout.theme : "a";
+  state.layout.preferenceVisible = Boolean(savedLayout.preferenceVisible);
+  const contactFields = new Set(["phone", "email", "headline", "location", "portfolio"]);
+  state.layout.contactBreakBefore = Array.isArray(savedLayout.contactBreakBefore)
+    ? [...new Set(savedLayout.contactBreakBefore.filter((field) => contactFields.has(field)))]
+    : [];
   restoreBlockFormatting(state, savedLayout);
 
   const savedPhoto = formatterState.photo && typeof formatterState.photo === "object"
@@ -4459,14 +4509,24 @@ function applyFontSizeRanges(tokens, rawRanges) {
 
 function restoreBlockFormatting(state, savedLayout) {
   const allowedKeys = new Set();
-  Object.keys(state.profile || {}).forEach((field) => allowedKeys.add(`profile:${field}`));
+  const textLengths = new Map();
+  Object.keys(state.profile || {}).forEach((field) => {
+    const key = `profile:${field}`;
+    allowedKeys.add(key);
+    textLengths.set(key, String(state.profile[field] || "").length);
+  });
   for (const section of (state.sections || [])) {
+    const sectionKey = `section:${section.id}:title`;
+    allowedKeys.add(sectionKey);
+    textLengths.set(sectionKey, String(section.title || "").length);
     const entries = [
       ...(section.entries || []),
       ...(section.blocks || []).filter((block) => block.type === "entry"),
     ];
     entries.forEach((entry) => ["name", "role", "date", "location"].forEach((field) => {
-      allowedKeys.add(`entry:${entry.id}:${field}`);
+      const key = `entry:${entry.id}:${field}`;
+      allowedKeys.add(key);
+      textLengths.set(key, String(entry[field] || "").length);
     }));
     (section.blocks || []).filter((block) => block.type === "text").forEach((block) => {
       allowedKeys.add(`text:${block.id}:content`);
@@ -4488,6 +4548,33 @@ function restoreBlockFormatting(state, savedLayout) {
     }
   }
   if (Object.keys(fontSizes).length > 0) state.layout.blockFontSizeDelta = fontSizes;
+
+  const links = {};
+  for (const [key, rawRanges] of Object.entries(savedLayout.blockLinks || {})) {
+    if (!textLengths.has(key) || !Array.isArray(rawRanges)) continue;
+    const textLength = textLengths.get(key);
+    const sortedRanges = rawRanges.map((range) => {
+      if (!range || typeof range !== "object") return null;
+      const start = Math.max(0, Math.min(textLength, Number(range.start)));
+      const end = Math.max(start, Math.min(textLength, Number(range.end)));
+      const href = restoreLinkTarget(range.href);
+      return Number.isFinite(start) && Number.isFinite(end) && end > start && href
+        ? { start, end, href }
+        : null;
+    }).filter(Boolean).sort((a, b) => a.start - b.start || a.end - b.end);
+    const ranges = sortedRanges.reduce((accepted, range) => {
+      const previous = accepted[accepted.length - 1];
+      if (!previous || range.start >= previous.end) accepted.push(range);
+      return accepted;
+    }, []);
+    if (ranges.length > 0) links[key] = ranges;
+  }
+  if (Object.keys(links).length > 0) state.layout.blockLinks = links;
+}
+
+function restoreLinkTarget(value) {
+  const raw = String(value || "").trim();
+  return /^(?:https?:\/\/|mailto:)[^\s]+$/i.test(raw) ? raw : "";
 }
 
 function restoreFormatterId(value, fallback) {
@@ -4640,18 +4727,15 @@ function renderHeader(state) {
     nameEl.contentEditable = "plaintext-only";
   }
 
-  const headlineEl = document.getElementById("profile-headline");
-  if (headlineEl) {
-    headlineEl.textContent = profile.headline || "";
-    headlineEl.dataset.empty = profile.headline ? "false" : "true";
-    headlineEl.dataset.profileField = "headline";
-    headlineEl.contentEditable = "plaintext-only";
-  }
-
   const contactEl = document.getElementById("contact-info");
   if (contactEl) {
     contactEl.innerHTML = "";
     const portfolio = getPortfolioContact(profile.portfolio);
+    const preferenceVisible = Boolean(
+      profile.headline
+      || profile.location
+      || (state.layout && state.layout.preferenceVisible)
+    );
     const items = [
       profile.phone && {
         field: "phone",
@@ -4661,22 +4745,73 @@ function renderHeader(state) {
         field: "email",
         text: profile.email,
       },
+      preferenceVisible && {
+        field: "headline",
+        text: profile.headline,
+        label: "求职方向：",
+        placeholder: "填写方向",
+      },
+      preferenceVisible && {
+        field: "location",
+        text: profile.location,
+        label: "期望城市：",
+        placeholder: "填写城市",
+      },
       portfolio && { field: "portfolio", text: portfolio.label, href: portfolio.href },
     ].filter(Boolean);
+    const breakBefore = new Set((state.layout && state.layout.contactBreakBefore) || []);
 
-    items.forEach(({ field, text, href }) => {
-      const item = document.createElement(href ? "a" : "span");
-      item.className = `contact-item${href ? " contact-link" : ""}`;
-      item.textContent = text;
-      item.dataset.profileField = field;
-      item.contentEditable = "plaintext-only";
-      if (href) {
-        item.href = href;
-        item.target = "_blank";
-        item.rel = "noopener noreferrer";
+    items.forEach(({ field, text, href, label, placeholder }) => {
+      if (breakBefore.has(field)) {
+        const lineBreak = document.createElement("span");
+        lineBreak.className = "contact-line-break";
+        lineBreak.dataset.breakBefore = field;
+        lineBreak.setAttribute("aria-hidden", "true");
+        contactEl.appendChild(lineBreak);
       }
+
+      const item = document.createElement("span");
+      item.className = `contact-item${label ? " contact-preference-item" : ""}`;
+      item.dataset.contactField = field;
+      if (label) {
+        const labelEl = document.createElement("span");
+        labelEl.className = "contact-label";
+        labelEl.textContent = label;
+        item.appendChild(labelEl);
+      }
+
+      const value = document.createElement(href ? "a" : "span");
+      value.className = `contact-value editable-placeholder${href ? " contact-link" : ""}`;
+      value.textContent = text;
+      value.dataset.profileField = field;
+      value.dataset.empty = text ? "false" : "true";
+      if (placeholder) value.dataset.placeholder = placeholder;
+      value.contentEditable = "plaintext-only";
+      if (href) {
+        value.href = href;
+        value.target = "_blank";
+        value.rel = "noopener noreferrer";
+      }
+      item.appendChild(value);
       contactEl.appendChild(item);
     });
+
+    if (preferenceVisible) {
+      const removeButton = document.createElement("button");
+      removeButton.className = "contact-action contact-remove-preference no-print";
+      removeButton.type = "button";
+      removeButton.textContent = "×";
+      removeButton.title = "删除求职偏好";
+      removeButton.setAttribute("aria-label", "删除求职偏好");
+      contactEl.appendChild(removeButton);
+    } else {
+      const addButton = document.createElement("button");
+      addButton.className = "contact-action contact-add-preference no-print";
+      addButton.type = "button";
+      addButton.textContent = "+ 求职偏好";
+      addButton.title = "在联系方式中添加求职方向和期望城市";
+      contactEl.appendChild(addButton);
+    }
   }
 
   renderPhoto(state);
@@ -5293,10 +5428,26 @@ function initEditor() {
     _lastInputHistory = { key, type: e.inputType, time: now };
   });
 
-  // Enter key: single-line fields blur; bullet Enter = new bullet below
+  // Enter in contact information creates a user-controlled line break.
+  // Other single-line fields blur; bullet Enter creates a new bullet below.
   content.addEventListener("keydown", (e) => {
-    if (e.key !== "Enter") return;
     const el = e.target;
+    if (e.key === "Backspace" && el.classList.contains("contact-value")) {
+      const selection = window.getSelection();
+      const range = selection && selection.rangeCount ? selection.getRangeAt(0) : null;
+      const offsets = range ? getSelectionOffsets(el, range) : null;
+      if (offsets && offsets.start === 0 && offsets.end === 0
+        && removeContactLineBreakBefore(el.dataset.profileField)) {
+        e.preventDefault();
+      }
+      return;
+    }
+    if (e.key !== "Enter") return;
+    if (el.classList.contains("contact-value")) {
+      e.preventDefault();
+      addContactLineBreakAfter(el.dataset.profileField);
+      return;
+    }
     if (el.classList.contains("bullet-item")) {
       e.preventDefault();
       addBulletAfter(el);
@@ -5339,6 +5490,8 @@ function initEditor() {
     else if (btn.classList.contains("btn-add-block"))   { e.stopPropagation(); addCustomBlock(btn.dataset.sectionId, btn.dataset.blockType); }
     else if (btn.classList.contains("btn-del-block"))   { e.stopPropagation(); deleteCustomBlock(btn.dataset.blockId); }
     else if (btn.classList.contains("btn-del-section")) { e.stopPropagation(); deleteSection(btn.dataset.sectionId); }
+    else if (btn.classList.contains("contact-add-preference")) { e.stopPropagation(); addPreferenceFields(); }
+    else if (btn.classList.contains("contact-remove-preference")) { e.stopPropagation(); removePreferenceFields(); }
   });
 
   initSectionReordering();
@@ -5381,7 +5534,7 @@ function initSelectionFormatting() {
     _formatOffsets = getSelectionOffsets(target, range);
     Object.values(buttons).forEach((button) => { if (button) button.disabled = false; });
     if (buttons.link) {
-      buttons.link.disabled = !target.dataset.bulletId && target.dataset.profileField !== "portfolio";
+      buttons.link.disabled = !canEditSelectionLink(target, _formatOffsets);
     }
     updateBoldButtonState(buttons.bold);
     updateItalicButtonState(buttons.italic);
@@ -5653,14 +5806,18 @@ function openSelectionLinkDialog() {
     return;
   }
 
-  if (!target.dataset.bulletId) return;
+  const inlineTarget = findInlineContentTarget(target);
+  if (!inlineTarget) {
+    openBlockLinkDialog(target);
+    return;
+  }
   syncElementToState(target);
-  const bullet = findBulletById(target.dataset.bulletId);
   const offsets = _formatOffsets || getSelectionOffsets(target, _formatRange);
-  if (!bullet || !offsets) return;
+  if (!offsets) return;
 
-  const existing = findLinkTokenRange(bullet.content, offsets.start);
+  const existing = findLinkTokenRange(inlineTarget.content, offsets.start);
   const isEditingExisting = Boolean(existing && offsets.end <= existing.end);
+  if (!isEditingExisting && offsets.start === offsets.end) return;
   const start = isEditingExisting ? existing.start : offsets.start;
   const end = isEditingExisting ? existing.end : offsets.end;
   const existingStyle = isEditingExisting
@@ -5668,7 +5825,7 @@ function openSelectionLinkDialog() {
     : { type: "text" };
   const selectedName = isEditingExisting
     ? existing.token.value
-    : splitTokensForRange(bullet.content, offsets.start, offsets.end)
+    : splitTokensForRange(inlineTarget.content, offsets.start, offsets.end)
       .filter((part) => part.selected)
       .map((part) => part.token.value)
       .join("");
@@ -5679,15 +5836,80 @@ function openSelectionLinkDialog() {
     canRemove: isEditingExisting,
     onSubmit: (name, href) => {
       pushUndoState();
-      bullet.content = replaceInlineRange(bullet.content, start, end, { ...existingStyle, value: name, href });
-      target.replaceChildren(renderInlineContent(bullet.content));
+      inlineTarget.content = replaceInlineRange(inlineTarget.content, start, end, { ...existingStyle, value: name, href });
+      target.replaceChildren(renderInlineContent(inlineTarget.content));
       markDirty();
       requestAnimationFrame(() => updateA4Status());
     },
     onRemove: isEditingExisting ? () => {
       pushUndoState();
-      bullet.content = replaceInlineRange(bullet.content, start, end, { ...existingStyle, value: existing.token.value });
-      target.replaceChildren(renderInlineContent(bullet.content));
+      inlineTarget.content = replaceInlineRange(inlineTarget.content, start, end, { ...existingStyle, value: existing.token.value });
+      target.replaceChildren(renderInlineContent(inlineTarget.content));
+      markDirty();
+      requestAnimationFrame(() => updateA4Status());
+    } : null,
+  });
+}
+
+function findInlineContentTarget(target) {
+  if (target.dataset.bulletId) return findBulletById(target.dataset.bulletId);
+  if (!target.dataset.textBlockId) return null;
+  for (const section of getState().sections) {
+    const block = (section.blocks || []).find((item) => item.id === target.dataset.textBlockId);
+    if (block) return block;
+  }
+  return null;
+}
+
+function findBlockLinkRange(ranges, start, end) {
+  return ranges.find((range) => start >= range.start
+    && start <= range.end
+    && end >= range.start
+    && end <= range.end) || null;
+}
+
+function replaceBlockLinkRange(ranges, start, end, replacementLength, href = "") {
+  const delta = replacementLength - (end - start);
+  const next = [];
+  ranges.forEach((range) => {
+    if (range.end <= start) next.push({ ...range });
+    else if (range.start >= end) next.push({ ...range, start: range.start + delta, end: range.end + delta });
+  });
+  if (href && replacementLength > 0) next.push({ start, end: start + replacementLength, href });
+  return next;
+}
+
+function openBlockLinkDialog(target) {
+  const key = getBlockFormatKey(target);
+  const offsets = _formatOffsets || getSelectionOffsets(target, _formatRange);
+  if (!key || !offsets) return;
+  syncElementToState(target);
+  const state = getState();
+  const text = target.textContent || "";
+  const ranges = getBlockLinkRanges(state, key, text.length);
+  const existing = findBlockLinkRange(ranges, offsets.start, offsets.end);
+  if (!existing && offsets.start === offsets.end) return;
+  const start = existing ? existing.start : offsets.start;
+  const end = existing ? existing.end : offsets.end;
+
+  showLinkDialog({
+    name: text.slice(start, end),
+    url: existing ? existing.href : "",
+    canRemove: Boolean(existing),
+    onSubmit: (name, href) => {
+      pushUndoState();
+      const nextText = text.slice(0, start) + name + text.slice(end);
+      target.textContent = nextText;
+      syncElementToState(target);
+      setBlockLinkRanges(state, key, replaceBlockLinkRange(ranges, start, end, name.length, href));
+      renderResume(state);
+      markDirty();
+      requestAnimationFrame(() => updateA4Status());
+    },
+    onRemove: existing ? () => {
+      pushUndoState();
+      setBlockLinkRanges(state, key, ranges.filter((range) => range !== existing));
+      renderResume(state);
       markDirty();
       requestAnimationFrame(() => updateA4Status());
     } : null,
@@ -5832,6 +6054,9 @@ function findBulletById(bulletId) {
 
 function getBlockFormatKey(target) {
   if (target.dataset.profileField) return `profile:${target.dataset.profileField}`;
+  if (target.classList.contains("section-title") && target.dataset.sectionId) {
+    return `section:${target.dataset.sectionId}:title`;
+  }
   if (target.dataset.entryField) {
     const entry = target.closest("[data-entry-id]");
     return entry ? `entry:${entry.dataset.entryId}:${target.dataset.entryField}` : null;
@@ -5844,6 +6069,8 @@ function getBlockFormatSelector(key) {
   const [kind, id, field] = key.split(":");
   return kind === "profile"
     ? `[data-profile-field="${CSS.escape(id)}"]`
+    : kind === "section"
+      ? `.section-title[data-section-id="${CSS.escape(id)}"]`
     : kind === "text"
       ? `[data-text-block-id="${CSS.escape(id)}"]`
       : `[data-entry-id="${CSS.escape(id)}"] [data-entry-field="${CSS.escape(field)}"]`;
@@ -5859,7 +6086,7 @@ function isElementItalic(element) {
 }
 
 function applyLocalFormatting(state) {
-  document.querySelectorAll("#resume-content [data-profile-field], #resume-content [data-entry-field]").forEach((element) => {
+  document.querySelectorAll("#resume-content [data-profile-field], #resume-content [data-entry-field], #resume-content .section-title").forEach((element) => {
     element.style.removeProperty("font-size");
     element.style.removeProperty("font-weight");
     element.style.removeProperty("font-style");
@@ -5880,6 +6107,175 @@ function applyLocalFormatting(state) {
       if (typeof style.italic === "boolean") element.style.fontStyle = style.italic ? "italic" : "normal";
     });
   });
+
+  applyBlockLinks(state);
+}
+
+function normalizeBlockLinkRanges(rawRanges, textLength = Infinity) {
+  const sorted = (Array.isArray(rawRanges) ? rawRanges : [])
+    .map((range) => {
+      if (!range || typeof range !== "object") return null;
+      const start = Math.max(0, Math.min(textLength, Number(range.start)));
+      const end = Math.max(start, Math.min(textLength, Number(range.end)));
+      const href = normalizeLinkTarget(range.href);
+      return Number.isFinite(start) && Number.isFinite(end) && end > start && href
+        ? { start, end, href }
+        : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  return sorted.reduce((accepted, range) => {
+    const previous = accepted[accepted.length - 1];
+    if (!previous || range.start >= previous.end) accepted.push(range);
+    return accepted;
+  }, []);
+}
+
+function getBlockLinkRanges(state, key, textLength = Infinity) {
+  const ranges = state.layout && state.layout.blockLinks && state.layout.blockLinks[key];
+  return normalizeBlockLinkRanges(ranges, textLength);
+}
+
+function setBlockLinkRanges(state, key, ranges) {
+  if (!state.layout) state.layout = {};
+  if (!state.layout.blockLinks) state.layout.blockLinks = {};
+  const normalized = normalizeBlockLinkRanges(ranges);
+  if (normalized.length > 0) state.layout.blockLinks[key] = normalized;
+  else delete state.layout.blockLinks[key];
+}
+
+function applyBlockLinks(state) {
+  const blockLinks = state.layout && state.layout.blockLinks;
+  Object.entries(blockLinks || {}).forEach(([key, rawRanges]) => {
+    document.querySelectorAll(`#resume-content ${getBlockFormatSelector(key)}`).forEach((element) => {
+      if (element.dataset.profileField === "portfolio") return;
+      const text = element.textContent || "";
+      const ranges = getBlockLinkRanges(state, key, text.length);
+      if (ranges.length === 0) return;
+      const fragment = document.createDocumentFragment();
+      let offset = 0;
+      ranges.forEach((range) => {
+        if (range.start > offset) fragment.appendChild(document.createTextNode(text.slice(offset, range.start)));
+        const link = document.createElement("a");
+        link.className = "inline-link";
+        link.href = range.href;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.textContent = text.slice(range.start, range.end);
+        fragment.appendChild(link);
+        offset = range.end;
+      });
+      if (offset < text.length) fragment.appendChild(document.createTextNode(text.slice(offset)));
+      element.replaceChildren(fragment);
+    });
+  });
+}
+
+function extractBlockLinkRanges(element, canonicalText) {
+  const rawText = element.textContent || "";
+  const leadingTrim = rawText.length - rawText.trimStart().length;
+  const ranges = [];
+  let offset = 0;
+  const walk = (node, inheritedHref = "") => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const length = (node.nodeValue || "").length;
+      if (length > 0 && inheritedHref) {
+        const start = Math.max(0, offset - leadingTrim);
+        const end = Math.min(canonicalText.length, offset + length - leadingTrim);
+        if (end > start) ranges.push({ start, end, href: inheritedHref });
+      }
+      offset += length;
+      return;
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return;
+    const href = node.tagName === "A" ? node.getAttribute("href") || inheritedHref : inheritedHref;
+    node.childNodes.forEach((child) => walk(child, href));
+  };
+  element.childNodes.forEach((node) => walk(node));
+  return normalizeBlockLinkRanges(ranges, canonicalText.length).reduce((merged, range) => {
+    const previous = merged[merged.length - 1];
+    if (previous && previous.end === range.start && previous.href === range.href) previous.end = range.end;
+    else merged.push({ ...range });
+    return merged;
+  }, []);
+}
+
+function syncBlockLinksFromElement(state, element, canonicalText) {
+  if (element.dataset.profileField === "portfolio"
+    || element.dataset.bulletId
+    || element.dataset.textBlockId) return;
+  const key = getBlockFormatKey(element);
+  if (!key) return;
+  setBlockLinkRanges(state, key, extractBlockLinkRanges(element, canonicalText));
+}
+
+function addPreferenceFields() {
+  const state = getState();
+  pushUndoState();
+  if (!state.layout) state.layout = {};
+  state.layout.preferenceVisible = true;
+  renderHeader(state);
+  applyLocalFormatting(state);
+  markDirty();
+  requestAnimationFrame(() => {
+    focusWithoutUndoSnapshot(document.querySelector('[data-profile-field="headline"]'));
+    updateA4Status();
+  });
+}
+
+function removePreferenceFields() {
+  const state = getState();
+  pushUndoState();
+  state.profile.headline = "";
+  state.profile.location = "";
+  if (!state.layout) state.layout = {};
+  state.layout.preferenceVisible = false;
+  state.layout.contactBreakBefore = (state.layout.contactBreakBefore || [])
+    .filter((field) => !["headline", "location"].includes(field));
+  if (state.layout.blockLinks) {
+    delete state.layout.blockLinks["profile:headline"];
+    delete state.layout.blockLinks["profile:location"];
+  }
+  renderHeader(state);
+  applyLocalFormatting(state);
+  markDirty();
+  requestAnimationFrame(() => updateA4Status());
+}
+
+function updateContactLineBreaks(nextBreaks, focusField) {
+  const state = getState();
+  if (!state.layout) state.layout = {};
+  state.layout.contactBreakBefore = [...new Set(nextBreaks)];
+  renderHeader(state);
+  applyLocalFormatting(state);
+  markDirty();
+  requestAnimationFrame(() => {
+    const target = document.querySelector(`[data-profile-field="${CSS.escape(focusField)}"]`);
+    focusWithoutUndoSnapshot(target);
+    updateA4Status();
+  });
+}
+
+function addContactLineBreakAfter(field) {
+  const fields = Array.from(document.querySelectorAll("#contact-info .contact-value"))
+    .map((element) => element.dataset.profileField);
+  const nextField = fields[fields.indexOf(field) + 1];
+  if (!nextField) return false;
+  const state = getState();
+  const current = (state.layout && state.layout.contactBreakBefore) || [];
+  if (current.includes(nextField)) return false;
+  pushUndoState();
+  updateContactLineBreaks([...current, nextField], nextField);
+  return true;
+}
+
+function removeContactLineBreakBefore(field) {
+  const state = getState();
+  const current = (state.layout && state.layout.contactBreakBefore) || [];
+  if (!current.includes(field)) return false;
+  pushUndoState();
+  updateContactLineBreaks(current.filter((item) => item !== field), field);
+  return true;
 }
 
 /** ========================
@@ -6050,14 +6446,30 @@ function updateLinkButtonState(button) {
     button.classList.toggle("toolbar-btn-active", Boolean(portfolio && portfolio.href));
     return;
   }
-  if (!_formatTarget.dataset.bulletId) {
-    button.classList.remove("toolbar-btn-active");
+  const offsets = _formatOffsets || getSelectionOffsets(_formatTarget, _formatRange);
+  const inlineTarget = findInlineContentTarget(_formatTarget);
+  if (inlineTarget && offsets) {
+    const existing = findLinkTokenRange(inlineTarget.content, offsets.start);
+    button.classList.toggle("toolbar-btn-active", Boolean(existing && offsets.end <= existing.end));
     return;
   }
-  const bullet = findBulletById(_formatTarget.dataset.bulletId);
-  const offsets = _formatOffsets || getSelectionOffsets(_formatTarget, _formatRange);
-  const existing = bullet && offsets ? findLinkTokenRange(bullet.content, offsets.start) : null;
-  button.classList.toggle("toolbar-btn-active", Boolean(existing && offsets.end <= existing.end));
+  const key = getBlockFormatKey(_formatTarget);
+  const ranges = key && offsets ? getBlockLinkRanges(getState(), key, _formatTarget.textContent.length) : [];
+  button.classList.toggle("toolbar-btn-active", Boolean(offsets && findBlockLinkRange(ranges, offsets.start, offsets.end)));
+}
+
+function canEditSelectionLink(target, offsets) {
+  if (!target || !offsets) return false;
+  if (target.dataset.profileField === "portfolio") return true;
+  const inlineTarget = findInlineContentTarget(target);
+  if (inlineTarget) {
+    const existing = findLinkTokenRange(inlineTarget.content, offsets.start);
+    return offsets.start !== offsets.end || Boolean(existing && offsets.end <= existing.end);
+  }
+  const key = getBlockFormatKey(target);
+  if (!key) return false;
+  const ranges = getBlockLinkRanges(getState(), key, target.textContent.length);
+  return offsets.start !== offsets.end || Boolean(findBlockLinkRange(ranges, offsets.start, offsets.end));
 }
 
 /** ========================
@@ -6610,6 +7022,8 @@ function syncElementToState(el) {
     } else if (field in state.profile) {
       state.profile[field] = raw;
     }
+    el.dataset.empty = raw ? "false" : "true";
+    syncBlockLinksFromElement(state, el, raw);
     return;
   }
 
@@ -6624,6 +7038,7 @@ function syncElementToState(el) {
         if (entry.id === entryId) {
           entry[field === "date" ? "date" : field] = raw;
           el.dataset.empty = raw ? "false" : "true";
+          syncBlockLinksFromElement(state, el, raw);
           return;
         }
       }
@@ -6637,6 +7052,7 @@ function syncElementToState(el) {
     if (section) {
       section.title = raw || (section.type === "custom" ? "未命名板块" : getSectionTitle(section.type));
       el.dataset.empty = raw ? "false" : "true";
+      syncBlockLinksFromElement(state, el, section.title);
     }
     return;
   }
@@ -7235,7 +7651,8 @@ function preparePortfolioLinkForPrint() {
     current.replaceWith(link);
   }
 
-  link.className = "contact-item contact-link";
+  link.className = "contact-value editable-placeholder contact-link";
+  link.dataset.empty = "false";
   link.setAttribute("href", portfolio.href);
   link.setAttribute("target", "_blank");
   link.setAttribute("rel", "noopener noreferrer");

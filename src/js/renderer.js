@@ -55,18 +55,15 @@ function renderHeader(state) {
     nameEl.contentEditable = "plaintext-only";
   }
 
-  const headlineEl = document.getElementById("profile-headline");
-  if (headlineEl) {
-    headlineEl.textContent = profile.headline || "";
-    headlineEl.dataset.empty = profile.headline ? "false" : "true";
-    headlineEl.dataset.profileField = "headline";
-    headlineEl.contentEditable = "plaintext-only";
-  }
-
   const contactEl = document.getElementById("contact-info");
   if (contactEl) {
     contactEl.innerHTML = "";
     const portfolio = getPortfolioContact(profile.portfolio);
+    const preferenceVisible = Boolean(
+      profile.headline
+      || profile.location
+      || (state.layout && state.layout.preferenceVisible)
+    );
     const items = [
       profile.phone && {
         field: "phone",
@@ -76,22 +73,73 @@ function renderHeader(state) {
         field: "email",
         text: profile.email,
       },
+      preferenceVisible && {
+        field: "headline",
+        text: profile.headline,
+        label: "求职方向：",
+        placeholder: "填写方向",
+      },
+      preferenceVisible && {
+        field: "location",
+        text: profile.location,
+        label: "期望城市：",
+        placeholder: "填写城市",
+      },
       portfolio && { field: "portfolio", text: portfolio.label, href: portfolio.href },
     ].filter(Boolean);
+    const breakBefore = new Set((state.layout && state.layout.contactBreakBefore) || []);
 
-    items.forEach(({ field, text, href }) => {
-      const item = document.createElement(href ? "a" : "span");
-      item.className = `contact-item${href ? " contact-link" : ""}`;
-      item.textContent = text;
-      item.dataset.profileField = field;
-      item.contentEditable = "plaintext-only";
-      if (href) {
-        item.href = href;
-        item.target = "_blank";
-        item.rel = "noopener noreferrer";
+    items.forEach(({ field, text, href, label, placeholder }) => {
+      if (breakBefore.has(field)) {
+        const lineBreak = document.createElement("span");
+        lineBreak.className = "contact-line-break";
+        lineBreak.dataset.breakBefore = field;
+        lineBreak.setAttribute("aria-hidden", "true");
+        contactEl.appendChild(lineBreak);
       }
+
+      const item = document.createElement("span");
+      item.className = `contact-item${label ? " contact-preference-item" : ""}`;
+      item.dataset.contactField = field;
+      if (label) {
+        const labelEl = document.createElement("span");
+        labelEl.className = "contact-label";
+        labelEl.textContent = label;
+        item.appendChild(labelEl);
+      }
+
+      const value = document.createElement(href ? "a" : "span");
+      value.className = `contact-value editable-placeholder${href ? " contact-link" : ""}`;
+      value.textContent = text;
+      value.dataset.profileField = field;
+      value.dataset.empty = text ? "false" : "true";
+      if (placeholder) value.dataset.placeholder = placeholder;
+      value.contentEditable = "plaintext-only";
+      if (href) {
+        value.href = href;
+        value.target = "_blank";
+        value.rel = "noopener noreferrer";
+      }
+      item.appendChild(value);
       contactEl.appendChild(item);
     });
+
+    if (preferenceVisible) {
+      const removeButton = document.createElement("button");
+      removeButton.className = "contact-action contact-remove-preference no-print";
+      removeButton.type = "button";
+      removeButton.textContent = "×";
+      removeButton.title = "删除求职偏好";
+      removeButton.setAttribute("aria-label", "删除求职偏好");
+      contactEl.appendChild(removeButton);
+    } else {
+      const addButton = document.createElement("button");
+      addButton.className = "contact-action contact-add-preference no-print";
+      addButton.type = "button";
+      addButton.textContent = "+ 求职偏好";
+      addButton.title = "在联系方式中添加求职方向和期望城市";
+      contactEl.appendChild(addButton);
+    }
   }
 
   renderPhoto(state);

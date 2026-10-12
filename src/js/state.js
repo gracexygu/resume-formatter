@@ -95,6 +95,9 @@ function createDefaultState() {
       lineHeight: 1.57,
       headerOffsetY: 0,
       theme: "a",
+      preferenceVisible: false,
+      contactBreakBefore: [],
+      blockLinks: {},
     },
     photo: {
       source: "",

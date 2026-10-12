@@ -748,12 +748,55 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
+  align-items: baseline;
   gap: 0;
   margin: 0;
   font-size: var(--font-size-contact);
 }
 
-#resume-page[data-theme] .contact-item + .contact-item::before { content: " | "; }
+#resume-page[data-theme] .contact-item + .contact-item::before {
+  content: "|";
+  display: inline-block;
+  margin: 0 1.2mm;
+  color: var(--color-muted, #4a4a4a);
+}
+#resume-page[data-theme] .contact-item {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+}
+#resume-page[data-theme] .contact-line-break {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 0;
+}
+#resume-page[data-theme] .contact-label { white-space: pre; }
+#resume-page[data-theme] .contact-value { min-width: 0.5em; }
+#resume-page[data-theme] .contact-link,
+#resume-page[data-theme] .inline-link {
+  color: #152fb4;
+  text-decoration: underline;
+  text-underline-offset: 0.08em;
+}
+.contact-action {
+  align-self: center;
+  margin-left: 1.5mm;
+  padding: 1px 4px;
+  border: 1px solid #bfdbfe;
+  border-radius: 3px;
+  background: #eff6ff;
+  color: #2563eb;
+  font: 10px/1.25 system-ui, sans-serif;
+  cursor: pointer;
+}
+.contact-remove-preference {
+  border-color: transparent;
+  background: transparent;
+  color: #dc2626;
+  opacity: 0;
+}
+#contact-info:hover .contact-remove-preference,
+.contact-remove-preference:focus-visible { opacity: 1; }
 
 #resume-page[data-theme] #photo-container {
   position: absolute;
