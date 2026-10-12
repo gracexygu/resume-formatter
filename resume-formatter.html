@@ -1746,6 +1746,7 @@ body {
   cursor: pointer;
 }
 .contact-remove-preference {
+  margin-left: 0.5mm;
   border-color: transparent;
   background: transparent;
   color: #dc2626;
@@ -2546,6 +2547,8 @@ function createDefaultState() {
       headerOffsetY: 0,
       theme: "a",
       preferenceVisible: false,
+      headlineVisible: false,
+      locationVisible: false,
       contactBreakBefore: [],
       blockLinks: {},
     },
@@ -4428,7 +4431,14 @@ function applyFormatterFileState(state, formatterState) {
   state.layout.lineHeight = restoreNumber(savedLayout.lineHeight, state.layout.lineHeight, 1.15, 1.8);
   state.layout.headerOffsetY = restoreNumber(savedLayout.headerOffsetY, state.layout.headerOffsetY, -8, 8);
   state.layout.theme = ["a", "b", "c", "d"].includes(savedLayout.theme) ? savedLayout.theme : "a";
-  state.layout.preferenceVisible = Boolean(savedLayout.preferenceVisible);
+  const legacyPreferenceVisible = Boolean(savedLayout.preferenceVisible);
+  state.layout.headlineVisible = typeof savedLayout.headlineVisible === "boolean"
+    ? savedLayout.headlineVisible
+    : legacyPreferenceVisible;
+  state.layout.locationVisible = typeof savedLayout.locationVisible === "boolean"
+    ? savedLayout.locationVisible
+    : legacyPreferenceVisible;
+  state.layout.preferenceVisible = state.layout.headlineVisible || state.layout.locationVisible;
   const contactFields = new Set(["phone", "email", "headline", "location", "portfolio"]);
   state.layout.contactBreakBefore = Array.isArray(savedLayout.contactBreakBefore)
     ? [...new Set(savedLayout.contactBreakBefore.filter((field) => contactFields.has(field)))]
@@ -4731,10 +4741,15 @@ function renderHeader(state) {
   if (contactEl) {
     contactEl.innerHTML = "";
     const portfolio = getPortfolioContact(profile.portfolio);
-    const preferenceVisible = Boolean(
+    const layout = state.layout || {};
+    const legacyPreferenceVisible = Boolean(layout.preferenceVisible);
+    const headlineVisible = Boolean(
       profile.headline
-      || profile.location
-      || (state.layout && state.layout.preferenceVisible)
+      || (typeof layout.headlineVisible === "boolean" ? layout.headlineVisible : legacyPreferenceVisible)
+    );
+    const locationVisible = Boolean(
+      profile.location
+      || (typeof layout.locationVisible === "boolean" ? layout.locationVisible : legacyPreferenceVisible)
     );
     const items = [
       profile.phone && {
@@ -4745,23 +4760,36 @@ function renderHeader(state) {
         field: "email",
         text: profile.email,
       },
-      preferenceVisible && {
+      {
         field: "headline",
         text: profile.headline,
         label: "求职方向：",
         placeholder: "填写方向",
+        preferenceVisible: headlineVisible,
       },
-      preferenceVisible && {
+      {
         field: "location",
         text: profile.location,
         label: "期望城市：",
         placeholder: "填写城市",
+        preferenceVisible: locationVisible,
       },
       portfolio && { field: "portfolio", text: portfolio.label, href: portfolio.href },
     ].filter(Boolean);
     const breakBefore = new Set((state.layout && state.layout.contactBreakBefore) || []);
 
-    items.forEach(({ field, text, href, label, placeholder }) => {
+    items.forEach(({ field, text, href, label, placeholder, preferenceVisible }) => {
+      if (label && !preferenceVisible) {
+        const addButton = document.createElement("button");
+        addButton.className = "contact-action contact-add-preference no-print";
+        addButton.type = "button";
+        addButton.dataset.preferenceField = field;
+        addButton.textContent = `+ ${label.replace(/[：:]$/, "")}`;
+        addButton.title = `在联系方式中添加${label.replace(/[：:]$/, "")}`;
+        contactEl.appendChild(addButton);
+        return;
+      }
+
       if (breakBefore.has(field)) {
         const lineBreak = document.createElement("span");
         lineBreak.className = "contact-line-break";
@@ -4793,25 +4821,19 @@ function renderHeader(state) {
         value.rel = "noopener noreferrer";
       }
       item.appendChild(value);
+
+      if (label) {
+        const removeButton = document.createElement("button");
+        removeButton.className = "contact-action contact-remove-preference no-print";
+        removeButton.type = "button";
+        removeButton.dataset.preferenceField = field;
+        removeButton.textContent = "×";
+        removeButton.title = `删除${label.replace(/[：:]$/, "")}`;
+        removeButton.setAttribute("aria-label", removeButton.title);
+        item.appendChild(removeButton);
+      }
       contactEl.appendChild(item);
     });
-
-    if (preferenceVisible) {
-      const removeButton = document.createElement("button");
-      removeButton.className = "contact-action contact-remove-preference no-print";
-      removeButton.type = "button";
-      removeButton.textContent = "×";
-      removeButton.title = "删除求职偏好";
-      removeButton.setAttribute("aria-label", "删除求职偏好");
-      contactEl.appendChild(removeButton);
-    } else {
-      const addButton = document.createElement("button");
-      addButton.className = "contact-action contact-add-preference no-print";
-      addButton.type = "button";
-      addButton.textContent = "+ 求职偏好";
-      addButton.title = "在联系方式中添加求职方向和期望城市";
-      contactEl.appendChild(addButton);
-    }
   }
 
   renderPhoto(state);
@@ -5490,8 +5512,8 @@ function initEditor() {
     else if (btn.classList.contains("btn-add-block"))   { e.stopPropagation(); addCustomBlock(btn.dataset.sectionId, btn.dataset.blockType); }
     else if (btn.classList.contains("btn-del-block"))   { e.stopPropagation(); deleteCustomBlock(btn.dataset.blockId); }
     else if (btn.classList.contains("btn-del-section")) { e.stopPropagation(); deleteSection(btn.dataset.sectionId); }
-    else if (btn.classList.contains("contact-add-preference")) { e.stopPropagation(); addPreferenceFields(); }
-    else if (btn.classList.contains("contact-remove-preference")) { e.stopPropagation(); removePreferenceFields(); }
+    else if (btn.classList.contains("contact-add-preference")) { e.stopPropagation(); addPreferenceField(btn.dataset.preferenceField); }
+    else if (btn.classList.contains("contact-remove-preference")) { e.stopPropagation(); removePreferenceField(btn.dataset.preferenceField); }
   });
 
   initSectionReordering();
@@ -6209,32 +6231,45 @@ function syncBlockLinksFromElement(state, element, canonicalText) {
   setBlockLinkRanges(state, key, extractBlockLinkRanges(element, canonicalText));
 }
 
-function addPreferenceFields() {
+function ensurePreferenceVisibilityState(state) {
+  if (!state.layout) state.layout = {};
+  const legacyVisible = Boolean(state.layout.preferenceVisible);
+  ["headline", "location"].forEach((field) => {
+    const key = `${field}Visible`;
+    if (typeof state.layout[key] !== "boolean") {
+      state.layout[key] = Boolean(state.profile[field] || legacyVisible);
+    }
+  });
+}
+
+function addPreferenceField(field) {
+  if (!["headline", "location"].includes(field)) return;
   const state = getState();
   pushUndoState();
-  if (!state.layout) state.layout = {};
-  state.layout.preferenceVisible = true;
+  ensurePreferenceVisibilityState(state);
+  state.layout[`${field}Visible`] = true;
+  state.layout.preferenceVisible = Boolean(state.layout.headlineVisible || state.layout.locationVisible);
   renderHeader(state);
   applyLocalFormatting(state);
   markDirty();
   requestAnimationFrame(() => {
-    focusWithoutUndoSnapshot(document.querySelector('[data-profile-field="headline"]'));
+    focusWithoutUndoSnapshot(document.querySelector(`[data-profile-field="${field}"]`));
     updateA4Status();
   });
 }
 
-function removePreferenceFields() {
+function removePreferenceField(field) {
+  if (!["headline", "location"].includes(field)) return;
   const state = getState();
   pushUndoState();
-  state.profile.headline = "";
-  state.profile.location = "";
-  if (!state.layout) state.layout = {};
-  state.layout.preferenceVisible = false;
+  ensurePreferenceVisibilityState(state);
+  state.profile[field] = "";
+  state.layout[`${field}Visible`] = false;
+  state.layout.preferenceVisible = Boolean(state.layout.headlineVisible || state.layout.locationVisible);
   state.layout.contactBreakBefore = (state.layout.contactBreakBefore || [])
-    .filter((field) => !["headline", "location"].includes(field));
+    .filter((breakField) => breakField !== field);
   if (state.layout.blockLinks) {
-    delete state.layout.blockLinks["profile:headline"];
-    delete state.layout.blockLinks["profile:location"];
+    delete state.layout.blockLinks[`profile:${field}`];
   }
   renderHeader(state);
   applyLocalFormatting(state);

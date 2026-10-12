@@ -96,6 +96,8 @@ function createDefaultState() {
       headerOffsetY: 0,
       theme: "a",
       preferenceVisible: false,
+      headlineVisible: false,
+      locationVisible: false,
       contactBreakBefore: [],
       blockLinks: {},
     },

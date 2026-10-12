@@ -790,6 +790,7 @@
   cursor: pointer;
 }
 .contact-remove-preference {
+  margin-left: 0.5mm;
   border-color: transparent;
   background: transparent;
   color: #dc2626;

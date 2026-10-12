@@ -59,10 +59,15 @@ function renderHeader(state) {
   if (contactEl) {
     contactEl.innerHTML = "";
     const portfolio = getPortfolioContact(profile.portfolio);
-    const preferenceVisible = Boolean(
+    const layout = state.layout || {};
+    const legacyPreferenceVisible = Boolean(layout.preferenceVisible);
+    const headlineVisible = Boolean(
       profile.headline
-      || profile.location
-      || (state.layout && state.layout.preferenceVisible)
+      || (typeof layout.headlineVisible === "boolean" ? layout.headlineVisible : legacyPreferenceVisible)
+    );
+    const locationVisible = Boolean(
+      profile.location
+      || (typeof layout.locationVisible === "boolean" ? layout.locationVisible : legacyPreferenceVisible)
     );
     const items = [
       profile.phone && {
@@ -73,23 +78,36 @@ function renderHeader(state) {
         field: "email",
         text: profile.email,
       },
-      preferenceVisible && {
+      {
         field: "headline",
         text: profile.headline,
         label: "求职方向：",
         placeholder: "填写方向",
+        preferenceVisible: headlineVisible,
       },
-      preferenceVisible && {
+      {
         field: "location",
         text: profile.location,
         label: "期望城市：",
         placeholder: "填写城市",
+        preferenceVisible: locationVisible,
       },
       portfolio && { field: "portfolio", text: portfolio.label, href: portfolio.href },
     ].filter(Boolean);
     const breakBefore = new Set((state.layout && state.layout.contactBreakBefore) || []);
 
-    items.forEach(({ field, text, href, label, placeholder }) => {
+    items.forEach(({ field, text, href, label, placeholder, preferenceVisible }) => {
+      if (label && !preferenceVisible) {
+        const addButton = document.createElement("button");
+        addButton.className = "contact-action contact-add-preference no-print";
+        addButton.type = "button";
+        addButton.dataset.preferenceField = field;
+        addButton.textContent = `+ ${label.replace(/[：:]$/, "")}`;
+        addButton.title = `在联系方式中添加${label.replace(/[：:]$/, "")}`;
+        contactEl.appendChild(addButton);
+        return;
+      }
+
       if (breakBefore.has(field)) {
         const lineBreak = document.createElement("span");
         lineBreak.className = "contact-line-break";
@@ -121,25 +139,19 @@ function renderHeader(state) {
         value.rel = "noopener noreferrer";
       }
       item.appendChild(value);
+
+      if (label) {
+        const removeButton = document.createElement("button");
+        removeButton.className = "contact-action contact-remove-preference no-print";
+        removeButton.type = "button";
+        removeButton.dataset.preferenceField = field;
+        removeButton.textContent = "×";
+        removeButton.title = `删除${label.replace(/[：:]$/, "")}`;
+        removeButton.setAttribute("aria-label", removeButton.title);
+        item.appendChild(removeButton);
+      }
       contactEl.appendChild(item);
     });
-
-    if (preferenceVisible) {
-      const removeButton = document.createElement("button");
-      removeButton.className = "contact-action contact-remove-preference no-print";
-      removeButton.type = "button";
-      removeButton.textContent = "×";
-      removeButton.title = "删除求职偏好";
-      removeButton.setAttribute("aria-label", "删除求职偏好");
-      contactEl.appendChild(removeButton);
-    } else {
-      const addButton = document.createElement("button");
-      addButton.className = "contact-action contact-add-preference no-print";
-      addButton.type = "button";
-      addButton.textContent = "+ 求职偏好";
-      addButton.title = "在联系方式中添加求职方向和期望城市";
-      contactEl.appendChild(addButton);
-    }
   }
 
   renderPhoto(state);

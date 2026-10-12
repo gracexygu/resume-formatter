@@ -260,7 +260,14 @@ function applyFormatterFileState(state, formatterState) {
   state.layout.lineHeight = restoreNumber(savedLayout.lineHeight, state.layout.lineHeight, 1.15, 1.8);
   state.layout.headerOffsetY = restoreNumber(savedLayout.headerOffsetY, state.layout.headerOffsetY, -8, 8);
   state.layout.theme = ["a", "b", "c", "d"].includes(savedLayout.theme) ? savedLayout.theme : "a";
-  state.layout.preferenceVisible = Boolean(savedLayout.preferenceVisible);
+  const legacyPreferenceVisible = Boolean(savedLayout.preferenceVisible);
+  state.layout.headlineVisible = typeof savedLayout.headlineVisible === "boolean"
+    ? savedLayout.headlineVisible
+    : legacyPreferenceVisible;
+  state.layout.locationVisible = typeof savedLayout.locationVisible === "boolean"
+    ? savedLayout.locationVisible
+    : legacyPreferenceVisible;
+  state.layout.preferenceVisible = state.layout.headlineVisible || state.layout.locationVisible;
   const contactFields = new Set(["phone", "email", "headline", "location", "portfolio"]);
   state.layout.contactBreakBefore = Array.isArray(savedLayout.contactBreakBefore)
     ? [...new Set(savedLayout.contactBreakBefore.filter((field) => contactFields.has(field)))]

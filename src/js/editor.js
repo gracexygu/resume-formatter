@@ -154,8 +154,8 @@ function initEditor() {
     else if (btn.classList.contains("btn-add-block"))   { e.stopPropagation(); addCustomBlock(btn.dataset.sectionId, btn.dataset.blockType); }
     else if (btn.classList.contains("btn-del-block"))   { e.stopPropagation(); deleteCustomBlock(btn.dataset.blockId); }
     else if (btn.classList.contains("btn-del-section")) { e.stopPropagation(); deleteSection(btn.dataset.sectionId); }
-    else if (btn.classList.contains("contact-add-preference")) { e.stopPropagation(); addPreferenceFields(); }
-    else if (btn.classList.contains("contact-remove-preference")) { e.stopPropagation(); removePreferenceFields(); }
+    else if (btn.classList.contains("contact-add-preference")) { e.stopPropagation(); addPreferenceField(btn.dataset.preferenceField); }
+    else if (btn.classList.contains("contact-remove-preference")) { e.stopPropagation(); removePreferenceField(btn.dataset.preferenceField); }
   });
 
   initSectionReordering();
@@ -873,32 +873,45 @@ function syncBlockLinksFromElement(state, element, canonicalText) {
   setBlockLinkRanges(state, key, extractBlockLinkRanges(element, canonicalText));
 }
 
-function addPreferenceFields() {
+function ensurePreferenceVisibilityState(state) {
+  if (!state.layout) state.layout = {};
+  const legacyVisible = Boolean(state.layout.preferenceVisible);
+  ["headline", "location"].forEach((field) => {
+    const key = `${field}Visible`;
+    if (typeof state.layout[key] !== "boolean") {
+      state.layout[key] = Boolean(state.profile[field] || legacyVisible);
+    }
+  });
+}
+
+function addPreferenceField(field) {
+  if (!["headline", "location"].includes(field)) return;
   const state = getState();
   pushUndoState();
-  if (!state.layout) state.layout = {};
-  state.layout.preferenceVisible = true;
+  ensurePreferenceVisibilityState(state);
+  state.layout[`${field}Visible`] = true;
+  state.layout.preferenceVisible = Boolean(state.layout.headlineVisible || state.layout.locationVisible);
   renderHeader(state);
   applyLocalFormatting(state);
   markDirty();
   requestAnimationFrame(() => {
-    focusWithoutUndoSnapshot(document.querySelector('[data-profile-field="headline"]'));
+    focusWithoutUndoSnapshot(document.querySelector(`[data-profile-field="${field}"]`));
     updateA4Status();
   });
 }
 
-function removePreferenceFields() {
+function removePreferenceField(field) {
+  if (!["headline", "location"].includes(field)) return;
   const state = getState();
   pushUndoState();
-  state.profile.headline = "";
-  state.profile.location = "";
-  if (!state.layout) state.layout = {};
-  state.layout.preferenceVisible = false;
+  ensurePreferenceVisibilityState(state);
+  state.profile[field] = "";
+  state.layout[`${field}Visible`] = false;
+  state.layout.preferenceVisible = Boolean(state.layout.headlineVisible || state.layout.locationVisible);
   state.layout.contactBreakBefore = (state.layout.contactBreakBefore || [])
-    .filter((field) => !["headline", "location"].includes(field));
+    .filter((breakField) => breakField !== field);
   if (state.layout.blockLinks) {
-    delete state.layout.blockLinks["profile:headline"];
-    delete state.layout.blockLinks["profile:location"];
+    delete state.layout.blockLinks[`profile:${field}`];
   }
   renderHeader(state);
   applyLocalFormatting(state);

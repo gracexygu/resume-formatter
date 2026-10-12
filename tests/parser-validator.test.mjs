@@ -251,6 +251,8 @@ test("JSON 往返会保留排版参数和逐行符号", () => {
   imported.state.layout.lineHeight = 1.7;
   imported.state.layout.theme = "d";
   imported.state.layout.preferenceVisible = true;
+  imported.state.layout.headlineVisible = false;
+  imported.state.layout.locationVisible = true;
   imported.state.layout.contactBreakBefore = ["headline"];
   imported.state.layout.blockLinks = {
     "profile:headline": [{ start: 0, end: 4, href: "https://example.com/profile" }],
@@ -268,6 +270,8 @@ test("JSON 往返会保留排版参数和逐行符号", () => {
   assert.equal(reopened.layout.lineHeight, 1.7);
   assert.equal(reopened.layout.theme, "d");
   assert.equal(reopened.layout.preferenceVisible, true);
+  assert.equal(reopened.layout.headlineVisible, false);
+  assert.equal(reopened.layout.locationVisible, true);
   assert.deepEqual(Array.from(reopened.layout.contactBreakBefore), ["headline"]);
   assert.deepEqual(
     JSON.parse(JSON.stringify(reopened.layout.blockLinks["profile:headline"])),
@@ -341,6 +345,8 @@ test("Markdown 往返会保留排版参数、逐行符号和局部字号", () =>
   result.state.layout.theme = "c";
   result.state.layout.blockTextStyle = { [`entry:${entry.id}:name`]: { bold: true, italic: false } };
   result.state.layout.preferenceVisible = true;
+  result.state.layout.headlineVisible = true;
+  result.state.layout.locationVisible = false;
   result.state.layout.contactBreakBefore = ["headline", "portfolio"];
   result.state.layout.blockLinks = {
     [`entry:${entry.id}:name`]: [{ start: 0, end: 2, href: "https://example.com/company" }],
@@ -362,6 +368,8 @@ test("Markdown 往返会保留排版参数、逐行符号和局部字号", () =>
   assert.equal(reopened.layout.headerOffsetY, 2.5);
   assert.equal(reopened.layout.theme, "c");
   assert.equal(reopened.layout.preferenceVisible, true);
+  assert.equal(reopened.layout.headlineVisible, true);
+  assert.equal(reopened.layout.locationVisible, false);
   assert.deepEqual(Array.from(reopened.layout.contactBreakBefore), ["headline", "portfolio"]);
   assert.equal(reopenedSection.spacingBefore, 3.5);
   assert.equal(reopenedBullet.markerStyle, "square");
